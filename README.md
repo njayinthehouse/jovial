@@ -3,7 +3,19 @@
 A testing framework for version control systems that support merge and
 forks operations.
 
-## Getting Started
+## Contributing
+
+### Getting Started
+
+1. Clone the repo.
+2. It's recommended to use a virtual environment. Install dependencies from 
+`requirements.txt`. Don't forget to put your virtual environment directory
+in the `.gitignore`, if you choose not to name it `venv`.
+3. I've used [pyre][https://pyre-check.org] to typecheck my code. It's pretty
+easy to use, and is in the requirements. But you don't have to use it if you
+don't want to, of course. 
+
+### Some Information
 
 - `Branch` type variable for all branches.
 
