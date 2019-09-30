@@ -77,6 +77,16 @@ class State(ABC, Generic[Branch, Local]):
     
     @abstractmethod
     def commit(self, br: Branch, cid: str, msg: str, update: Callable[[Local], Local]) -> State[Branch, Local]: pass
+ 
+    @abstractmethod
+    def alert(self, state: State[Branch, Local]) -> bool:
+        '''For cases where we want to break execution and store the result'''
+        pass
+
+    @abstractmethod
+    def record_state(self, state: State[Branch, Local]) -> None:
+        '''To record interesting situations'''
+        pass
     
 class Backend(ABC, Generic[Branch, Local]):
 
@@ -96,21 +106,11 @@ class Backend(ABC, Generic[Branch, Local]):
             br, brn = command                               # pyre-ignore
             return state.fork(br, brn)
         elif type(command) == Frontend.Commit:
-            br, cid, msg, updateNode = command                  # pyre-ignore
+            br, cid, msg, updateNode = command              # pyre-ignore
             return state.commit(br, cid, msg, self.update(updateNode))
         else:
             raise Exception("Command not found!")
-
-    @abstractmethod
-    def alert(self, state: State[Branch, Local]) -> bool:
-        '''For cases where we want to break execution and store the result'''
-        pass
-
-    @abstractmethod
-    def record_state(self, state: State[Branch, Local]) -> None:
-        '''To record interesting situations'''
-        pass
-    
+   
     @abstractmethod
     def update(self, update: Frontend.Update) -> Callable[[LocalState], LocalState]: 
         '''To update the local state. Implements the Update AST node.'''
