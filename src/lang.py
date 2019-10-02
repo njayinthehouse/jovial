@@ -1,6 +1,6 @@
 # pyre-strict
 from abc    import ABC, abstractmethod
-from typing import Callable, Dict, Generic, List, NamedTuple, TypeVar
+from typing import Callable, Dict, Generic, List, NamedTuple, Optional, TypeVar
 
 Branch = TypeVar("Branch")
 Local  = TypeVar("Local")
@@ -25,7 +25,6 @@ class Frontend(ABC, Generic[Branch]):
 
     class Commit(Command, NamedTuple):
         br: Branch
-        id: str
         msg: str
         update: Update
 
@@ -41,10 +40,10 @@ class Frontend(ABC, Generic[Branch]):
             elif c == "fork":
                 return self.Fork(*args[1:])
             elif c == "commit":
-                tail = "".join(args[3:]).split("\"")[1:]
+                tail = "".join(args[2:]).split("\"")[1:]
                 msg = tail[0]
                 update = self.parseUpdate(tail[1])
-                return self.Commit(args[1], args[2], msg, update)
+                return self.Commit(args[1], msg, update)
             else:
                 raise Exception("Parse error: Unknown command %s" % args[0])
         except TypeError:
@@ -64,27 +63,27 @@ class State(ABC, Generic[Branch, Local]):
     def get(self, br: Branch) -> Local: pass
 
     @abstractmethod 
-    def set(self, br: Branch, local: Local) -> State[Branch, Local]: pass
+    def set(self, br: Branch, local: Local) -> None: pass
     
     @abstractmethod
     def common_ancestor(self, br1: Branch, br2: Branch) -> Branch: pass
     
     @abstractmethod
-    def merge(self, br1: Branch, br2: Branch) -> State[Branch, Local]: pass
+    def merge(self, br1: Branch, br2: Branch) -> None: pass
     
     @abstractmethod
-    def fork(self, br: Branch, brn: Branch) -> State[Branch, Local]: pass
+    def fork(self, br: Branch, brn: Branch) -> None: pass
     
     @abstractmethod
-    def commit(self, br: Branch, cid: str, msg: str, update: Callable[[Local], Local]) -> State[Branch, Local]: pass
+    def commit(self, br: Branch, msg: str, update: Callable[[Local], Local]) -> None: pass
  
     @abstractmethod
-    def alert(self, state: State[Branch, Local]) -> bool:
+    def alert(self) -> Optional[str]:
         '''For cases where we want to break execution and store the result'''
         pass
 
     @abstractmethod
-    def record_state(self, state: State[Branch, Local]) -> None:
+    def record_state(self) -> None:
         '''To record interesting situations'''
         pass
     
@@ -92,22 +91,22 @@ class Backend(ABC, Generic[Branch, Local]):
 
     def run(self, state: State[Branch, Local], program: List[Frontend.Command]) -> None:
         for command in program:
-            if self.alert(state):
-                self.record_state(state)
+            if state.alert() is not None:
+                state.record_state()
                 break
             else:
                 self.eval(state, command)
 
-    def eval(self, state: State[Branch, Local], command: Frontend.Command) -> State[Branch, Local]:
+    def eval(self, state: State[Branch, Local], command: Frontend.Command) -> None:
         if type(command) == Frontend.Merge:
             br1, br2 = command                              # pyre-ignore
-            return state.merge(br1, br2)
+            state.merge(br1, br2)
         elif type(command) == Frontend.Fork:
             br, brn = command                               # pyre-ignore
-            return state.fork(br, brn)
+            state.fork(br, brn)
         elif type(command) == Frontend.Commit:
-            br, cid, msg, updateNode = command              # pyre-ignore
-            return state.commit(br, cid, msg, self.update(updateNode))
+            br, msg, updateNode = command              # pyre-ignore
+            state.commit(br, msg, self.update(updateNode))
         else:
             raise Exception("Command not found!")
    
