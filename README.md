@@ -36,3 +36,8 @@ merging, forking and committing to local state.
   nodes into functions which can modify local states.
   + The `alert` method is used to check for interesting cases, which we might 
   record using `record_state`.
+
+### Future Work
+
+- FileState.alert is O(n^2). Need to be smarter about this in the future.
+- For now, if we get a merge conflict, we just abandon the test. In the future, we want to undoing the merge conflict by reverting state instead.
