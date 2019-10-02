@@ -1,6 +1,6 @@
 # pyre-strict
 from abc    import ABC, abstractmethod
-from typing import Callable, Dict, Generic, List, NamedTuple, Optional, TypeVar
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar
 
 Branch = TypeVar("Branch")
 Local  = TypeVar("Local")
@@ -13,20 +13,34 @@ class Frontend(ABC, Generic[Branch]):
         Add any update expressions to a subclass of Frontend as subclasses of this class.
         '''
 
-    class Command(ABC): pass
+    class Command(ABC):
+        @abstractmethod
+        def to_tuple(self) -> Tuple[Any, ...]: pass
     
-    class Merge(Command, NamedTuple):
-        br1: Branch
-        br2: Branch
+    class Merge(Command):
+        def __init__(self, br1: Branch, br2: Branch) -> None:
+            self.br1: Branch = br1
+            self.br2: Branch = br2
 
-    class Fork(Command, NamedTuple):
-        br: Branch
-        br_new: Branch
+        def to_tuple(self) -> Tuple[Branch, Branch]:
+            return self.br1, self.br2
 
-    class Commit(Command, NamedTuple):
-        br: Branch
-        msg: str
-        update: Update
+    class Fork(Command):
+        def __init__(self, br: Branch, brn: Branch) -> None:
+            self.br: Branch = br
+            self.brn: Branch = brn
+
+        def to_tuple(self) -> Tuple[Branch, Branch]:
+            return self.br, self.brn
+
+    class Commit(Command):
+        def __init__(self, br: Branch, msg: str, update) -> None:
+            self.br: Branch = br
+            self.msg: str = msg
+            self.update = update
+
+        def to_tuple(self):
+            return self.br, self.msg, self.update
 
     arity = {"merge": 2, "fork": 2, "commit": 4}
 
@@ -99,18 +113,18 @@ class Backend(ABC, Generic[Branch, Local]):
 
     def eval(self, state: State[Branch, Local], command: Frontend.Command) -> None:
         if type(command) == Frontend.Merge:
-            br1, br2 = command                              # pyre-ignore
+            br1, br2 = command.to_tuple()
             state.merge(br1, br2)
         elif type(command) == Frontend.Fork:
-            br, brn = command                               # pyre-ignore
+            br, brn = command.to_tuple()
             state.fork(br, brn)
         elif type(command) == Frontend.Commit:
-            br, msg, updateNode = command              # pyre-ignore
+            br, msg, updateNode = command.to_tuple()
             state.commit(br, msg, self.update(updateNode))
         else:
             raise Exception("Command not found!")
    
     @abstractmethod
-    def update(self, update: Frontend.Update) -> Callable[[LocalState], LocalState]: 
+    def update(self, update: Frontend.Update) -> Callable[[Local], Local]: 
         '''To update the local state. Implements the Update AST node.'''
  

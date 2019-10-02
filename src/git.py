@@ -2,25 +2,34 @@
 import subprocess
 from   typing     import Callable, List, Optional
 
-from .lang import State
+from lang import State
 
-LANGUAGE = '/bin/bash/'
+LANGUAGE = '/bin/bash'
 
-def run_program(commands: List[str], path: str) -> str:
+def run_program(commands: List[str], path: Optional[str] = None) -> str:
     p = subprocess.Popen(LANGUAGE, stdin=subprocess.PIPE, 
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    p.stdin.write(b'cd %s\n' % path)
+    if path is not None:
+        p.stdin.write(('cd %s\n' % path).encode())
     for command in commands:
         p.stdin.write(('%s\n' % command).encode())
-    p.stdin.write(b'cd -\n')
+    if path is not None:
+        p.stdin.write(b'cd -\n')
+    p.stdin.close()
     return p.stdout.read().decode('utf-8')
 
+
 class FileState(State[str, List[str]]):
-    def __init__(self, dir_path: str, fname: str) -> None:
+    def __init__(self, dir_path: str, fname: str, created: bool = False) -> None:
         self.name: str = fname
         self.dir: str = dir_path
         self.run: Callable[[List[str]], str] = lambda cs: run_program(cs, self.dir)
-        self.branches: List[str] = []
+        self.branches: List[str] = ['master']
+        if not created:
+            program = ['mkdir %s' % dir_path]
+            run_program(program)
+            program = ['git init', 'touch %s' % fname, 'git add %s' % fname, 'git commit -m "First commit"']
+            self.run(program)
 
     def get(self, br: str) -> List[str]:
         program = ['git checkout %s' % br, 'cat %s' % self.name]
@@ -68,3 +77,10 @@ class FileState(State[str, List[str]]):
 
     def record_state(self) -> None:
         pass
+
+#if __name__ == '__main__':
+#    fs = FileState('/tmp/git-test', 'state.txt', True)
+#    #fs.commit('master', 'Second commit', lambda _: ["Committed"])
+#    fs.fork('master', 'child')
+#    fs.commit('child', 'Third commit', lambda _: ["Boom"])
+#    fs.merge('child', 'master')
