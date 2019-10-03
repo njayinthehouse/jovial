@@ -1,7 +1,11 @@
 # Jovial
 
-A testing framework for version control systems that support merge and
-forks operations.
+Git is a grumpy old man with a lot of problems. For the happiness of future
+generations, we want to find these problems to learn from them. Jovial is a
+framework for trying to automatically detect these problems. It consists
+of a language to model git, which allows us to talk about Git's behavior.
+To achieve happiness (i.e. detect problems), we have a tweakable testing
+harness, Pursuit (to be written).
 
 ## Contributing
 
