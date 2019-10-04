@@ -80,22 +80,12 @@ class FileState(State[str, List[str]]):
         pass
 
 
-class TestableFileState(FileState):
-    def __init__(self, fname: str, dir_name: str, path: str) -> None:
-        self.name: str = fname
-        self.dir_name: str = dir_name
-        self.path: str = path
-        self.filestates: List[FileState] = [FileState('%s/%s%d' % (path, dir_name, 0), fname)]
+class ClonableFileState(FileState):
+    def __init__(self, dir_path: str, fname: str) -> None:
+        super().__init__(dir_path, fname)
 
-    def clone(self, tag: int) -> int:
-        l = len(self.filestates)
-        program = ['cp -r %s%d' % (self.dir_name, tag)]
-        fs = FileState('%s/%s%d' % (self.path, self.dir_name, l), self.name, True)
-        self.filestates += [fs]
-        return l
-
-    def get(self, tag: int) -> FileState:
-        return self.filestates[tag]
+    def clone(self, dir_path: str) -> ClonableFileState:
+        return ClonableFileState(dir_path, self.name)
 
 #if __name__ == '__main__':
 #    fs = FileState('/tmp/git-test', 'state.txt', True)
