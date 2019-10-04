@@ -1,15 +1,11 @@
 # pyre-strict
 import subprocess
-from   typing     import Callable, Enum, List, Optional
+from   typing import Callable, List, Optional
+from   enum   import Enum
 
-from lang import State
+from lang import Result, State
 
 LANGUAGE = '/bin/bash'
-
-
-class Result(Enum):
-    Ok = 0
-    Failure = 1
 
 def run_program(commands: List[str], path: Optional[str] = None) -> str:
     p = subprocess.Popen(LANGUAGE, stdin=subprocess.PIPE, 
@@ -52,9 +48,9 @@ class FileState(State[str, List[str]]):
         program = ['git merge-base %s %s' % (br1, br2)]
         return self.run(program)
 
-    def merge(self, br1: str, br2: str) -> None:
+    def merge(self, br1: str, br2: str) -> Result:
         program = ['git checkout %s > /dev/null' % br2, 'git merge %s > /dev/null' % br1, 'git ls-files -u']
-        return Ok if self.run(program) = [] else return Failure
+        return Result.Ok if self.run(program) == [] else Result.Failure
 
     def fork(self, br: str, brn: str) -> None:
         program = ['git checkout %s' % br, 'git checkout -b %s' % brn]
@@ -89,15 +85,15 @@ class TestableFileState:
         self.name: str = fname
         self.dir_name: str = dir_name
         self.path: str = path
-        self.filestates: List[FileState] = [FileState(fname, '%s/%s%d' % (path, dir_name, 0)]
+        self.filestates: List[FileState] = [FileState(fname, '%s/%s%d' % (path, dir_name, 0))]
 
     def clone(self, tag: int) -> None:
         l = len(self.filestates)
         program = ['cp -r %s%d' % (self.dir_name, tag)]
         fs = FileState(self.name, '%s/%s%d' % (self.path, self.dir_name, l), True)
-        self.filestates += fs
+        self.filestates += [fs]
 
-    def get(self, tag):
+    def get(self, tag: int) -> FileState:
         return self.filestates[tag]
 
 #if __name__ == '__main__':
