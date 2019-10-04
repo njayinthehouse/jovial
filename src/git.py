@@ -1,20 +1,25 @@
 # pyre-strict
 import subprocess
-from   typing     import Callable, List, Optional
+from   typing     import Callable, Enum, List, Optional
 
 from lang import State
 
 LANGUAGE = '/bin/bash'
 
+
+class Result(Enum):
+    Ok = 0
+    Failure = 1
+
 def run_program(commands: List[str], path: Optional[str] = None) -> str:
     p = subprocess.Popen(LANGUAGE, stdin=subprocess.PIPE, 
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if path is not None:
-        p.stdin.write(('cd %s\n' % path).encode())
+        p.stdin.write(('cd %s\n > /dev/null' % path).encode())
     for command in commands:
         p.stdin.write(('%s\n' % command).encode())
     if path is not None:
-        p.stdin.write(b'cd -\n')
+        p.stdin.write(b'cd -\n > /dev/null')
     p.stdin.close()
     return p.stdout.read().decode('utf-8')
 
@@ -32,7 +37,7 @@ class FileState(State[str, List[str]]):
             self.run(program)
 
     def get(self, br: str) -> List[str]:
-        program = ['git checkout %s' % br, 'cat %s' % self.name]
+        program = ['git checkout %s > /dev/null' % br, 'cat %s' % self.name]
         return self.run(program).split('\n')
 
     def set(self, br: str, local: List[str]) -> None:
@@ -48,8 +53,8 @@ class FileState(State[str, List[str]]):
         return self.run(program)
 
     def merge(self, br1: str, br2: str) -> None:
-        program = ['git checkout %s' % br2, 'git merge %s' % br1]
-        self.run(program)
+        program = ['git checkout %s > /dev/null' % br2, 'git merge %s > /dev/null' % br1, 'git ls-files -u']
+        return Ok if self.run(program) = [] else return Failure
 
     def fork(self, br: str, brn: str) -> None:
         program = ['git checkout %s' % br, 'git checkout -b %s' % brn]
@@ -77,6 +82,23 @@ class FileState(State[str, List[str]]):
 
     def record_state(self) -> None:
         pass
+
+
+class TestableFileState:
+    def __init__(self, fname: str, dir_name: str, path: str) -> None:
+        self.name: str = fname
+        self.dir_name: str = dir_name
+        self.path: str = path
+        self.filestates: List[FileState] = [FileState(fname, '%s/%s%d' % (path, dir_name, 0)]
+
+    def clone(self, tag: int) -> None:
+        l = len(self.filestates)
+        program = ['cp -r %s%d' % (self.dir_name, tag)]
+        fs = FileState(self.name, '%s/%s%d' % (self.path, self.dir_name, l), True)
+        self.filestates += fs
+
+    def get(self, tag):
+        return self.filestates[tag]
 
 #if __name__ == '__main__':
 #    fs = FileState('/tmp/git-test', 'state.txt', True)
