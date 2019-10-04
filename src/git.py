@@ -80,18 +80,19 @@ class FileState(State[str, List[str]]):
         pass
 
 
-class TestableFileState:
+class TestableFileState(FileState):
     def __init__(self, fname: str, dir_name: str, path: str) -> None:
         self.name: str = fname
         self.dir_name: str = dir_name
         self.path: str = path
-        self.filestates: List[FileState] = [FileState(fname, '%s/%s%d' % (path, dir_name, 0))]
+        self.filestates: List[FileState] = [FileState('%s/%s%d' % (path, dir_name, 0), fname)]
 
-    def clone(self, tag: int) -> None:
+    def clone(self, tag: int) -> int:
         l = len(self.filestates)
         program = ['cp -r %s%d' % (self.dir_name, tag)]
-        fs = FileState(self.name, '%s/%s%d' % (self.path, self.dir_name, l), True)
+        fs = FileState('%s/%s%d' % (self.path, self.dir_name, l), self.name, True)
         self.filestates += [fs]
+        return l
 
     def get(self, tag: int) -> FileState:
         return self.filestates[tag]
