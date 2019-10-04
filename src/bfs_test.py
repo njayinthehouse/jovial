@@ -1,5 +1,5 @@
 from collections import deque
-from git import FileState
+from git import ClonableFileState
 from lang import Result
 from typing import Callable, List
 
@@ -29,16 +29,19 @@ while len(q) > 0:
     if state_id > 10000:
         break
     state = q.popleft()
-    num_branches = len(branches)
     for branch in branches:
         # merge
         for other in branches:
             if branch == other:
                 continue
-            new_state = state.copy(prefix + str(state_id))
+            new_state = state.clone(prefix + str(state_id))
             if new_state.merge(branch, other) == Result.Ok:
                 q.append(new_state)
                 state_id += 1
+                res = new_state.alert()
+                if res is not None:
+                    print(res)
+                    raise Exception(res)
         # commit
         txt = state.get(branch)
         len_txt = len(txt)
@@ -46,7 +49,7 @@ while len(q) > 0:
             # commit-remove
             for pos in range(len_txt):
                 msg = branch + ' remove ' + str(pos)
-                new_state = state.copy(prefix + str(state_id))
+                new_state = state.clone(prefix + str(state_id))
                 new_state.commit(branch, msg, make_remove(pos))
                 q.append(new_state)
                 state_id += 1
@@ -55,7 +58,7 @@ while len(q) > 0:
             for i in range(2):
                 char = chr(ord('a') + i)
                 msg = branch + ' insert ' + str(pos) + ' ' + char
-                new_state = state.copy(prefix + str(state_id))
+                new_state = state.clone(prefix + str(state_id))
                 new_state.commit(branch, msg, make_insert(pos, char))
                 q.append(new_state)
                 state_id += 1
