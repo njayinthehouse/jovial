@@ -34,15 +34,20 @@ class FileState(State[str, List[str]]):
 
     def get(self, br: str) -> List[str]:
         program = ['git checkout %s > /dev/null' % br, 'cat %s' % self.name]
-        return self.run(program).split('\n')
+        r = self.run(program)
+        if len(r) == 1 and r[0] == '':
+            return []
+        else:
+            return r.split('\n')
 
     def set(self, br: str, local: List[str]) -> None:
-        program = ['git checkout %s' % br, 
-                   'echo "%s" > %s' % (local[0], self.name)]
-        for line in local[1:]:
-            program += ['echo "%s" >> %s' % (line, self.name)]
+        if len(local) == 0:
+            program = ['git checkout %s' % br, 'echo "" > %s' % self.name]
+        else:
+            program = ['git checkout %s' % br, 'echo "%s" > %s' % (local[0], self.name)]
+            for line in local[1:]:
+                program += ['echo "%s" >> %s' % (line, self.name)]
         self.run(program)
-        self
 
     def common_ancestor(self, br1: str, br2: str) -> str:
         program = ['git merge-base %s %s' % (br1, br2)]
