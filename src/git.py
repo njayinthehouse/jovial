@@ -35,7 +35,7 @@ class FileState(State[str, List[str]]):
     def get(self, br: str) -> List[str]:
         program = ['git checkout %s > /dev/null' % br, 'cat %s' % self.name]
         r = self.run(program)
-        if len(r) == 1 and r[0] == '':
+        if r == '':
             return []
         else:
             return r.split('\n')
