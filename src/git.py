@@ -81,11 +81,13 @@ class FileState(State[str, List[str]]):
 
 
 class ClonableFileState(FileState):
-    def __init__(self, dir_path: str, fname: str) -> None:
-        super().__init__(dir_path, fname)
+    def __init__(self, dir_path: str, fname: str, created: bool = False) -> None:
+        super().__init__(dir_path, fname, created)
 
     def clone(self, dir_path: str) -> ClonableFileState:
-        return ClonableFileState(dir_path, self.name)
+        program = ['rm -rf %s' % dir_path, 'cp -r . %s' % dir_path]
+        self.run(program)
+        return ClonableFileState(dir_path, self.name, True)
 
 #if __name__ == '__main__':
 #    fs = FileState('/tmp/git-test', 'state.txt', True)
