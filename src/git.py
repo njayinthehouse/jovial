@@ -69,8 +69,11 @@ class FileState(State[str, List[str]]):
                    'git commit -m "%s"' % msg]
         self.run(program)
 
-    def history(self, br: str) -> List[str]:
-        program = ['git checkout %s > /dev/null' % br, 'git log --pretty=oneline | cat']
+    def history(self, br=None, with_graph=False) -> List[str]:
+        if with_graph:
+            program = ['git log --all --oneline --graph | cat']
+        else:
+            program = ['git log --pretty=oneline | cat']
         return self.run(program).split('\n')
 
     def alert(self) -> Optional[str]:
