@@ -41,7 +41,7 @@ class FileState(State[str, List[str]]):
 
     def set(self, br: str, local: List[str]) -> None:
         if len(local) == 0:
-            program = ['git checkout %s' % br, 'echo "" > %s' % self.name]
+            program = ['git checkout %s' % br, 'echo -n "" > %s' % self.name]
         else:
             program = ['git checkout %s' % br, 'echo "%s" > %s' % (local[0], self.name)]
             for line in local[1:]:
