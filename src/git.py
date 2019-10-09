@@ -19,7 +19,6 @@ def run_program(commands: List[str], path: Optional[str] = None) -> str:
     p.stdin.close()
     return p.stdout.read().decode('utf-8')
 
-
 class FileState(State[str, List[str]]):
     def __init__(self, dir_path: str, fname: str, created: bool = False) -> None:
         self.name: str = fname
@@ -38,7 +37,7 @@ class FileState(State[str, List[str]]):
         if r == '':
             return []
         else:
-            return r.split('\n')
+            return list(filter(lambda l: l != "", r.split('\n')))
 
     def set(self, br: str, local: List[str]) -> None:
         if len(local) == 0:
@@ -71,7 +70,7 @@ class FileState(State[str, List[str]]):
         self.run(program)
 
     def history(self, br: str) -> List[str]:
-        program = ['git checkout %s' % br, 'git log --pretty=oneline | cat']
+        program = ['git checkout %s > /dev/null' % br, 'git log --pretty=oneline | cat']
         return self.run(program).split('\n')
 
     def alert(self) -> Optional[str]:
