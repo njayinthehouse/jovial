@@ -11,11 +11,11 @@ def run_program(commands: List[str], path: Optional[str] = None) -> str:
     p = subprocess.Popen(LANGUAGE, stdin=subprocess.PIPE, 
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if path is not None:
-        p.stdin.write(('cd %s\n > /dev/null' % path).encode())
+        p.stdin.write(('cd %s > /dev/null\n' % path).encode())
     for command in commands:
         p.stdin.write(('%s\n' % command).encode())
     if path is not None:
-        p.stdin.write(b'cd -\n > /dev/null')
+        p.stdin.write(b'cd - > /dev/null\n')
     p.stdin.close()
     return p.stdout.read().decode('utf-8')
 
@@ -26,7 +26,7 @@ class FileState(State[str, List[str]]):
         self.run: Callable[[List[str]], str] = lambda cs: run_program(cs, self.dir)
         self.branches: List[str] = ['master']
         if not created:
-            program = ['mkdir %s' % dir_path]
+            program = ['mkdir -p %s' % dir_path]
             run_program(program)
             program = ['git init', 'touch %s' % fname, 'git add %s' % fname, 'git commit -m "First commit"']
             self.run(program)
@@ -54,7 +54,7 @@ class FileState(State[str, List[str]]):
 
     def merge(self, br1: str, br2: str) -> Result:
         program = ['git checkout %s > /dev/null' % br2, 'git merge %s > /dev/null' % br1, 'git ls-files -u']
-        return Result.Ok if self.run(program) == [] else Result.Failure
+        return Result.Ok if self.run(program) == '' else Result.Failure
 
     def fork(self, br: str, brn: str) -> None:
         program = ['git checkout %s' % br, 'git checkout -b %s' % brn]
