@@ -11,11 +11,14 @@ def run(commands: List[str], path: Optional[str] = None,
     p = subprocess.Popen(LANGUAGE, stdin=subprocess.PIPE, 
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if path is not None:
+        print('Change dir to path %s' % path)
         p.stdin.write(('cd %s\n' % path).encode())
     for command in commands:
+        print(command)
         p.stdin.write(('%s\n' % command).encode())
     p.stdin.close()
     r = p.stdout.read().decode('utf-8')
+    print('R' + r)
     if output:
         return r
     else:
@@ -65,6 +68,7 @@ class Repo:
         self.path: str = path
         self.name: str = path.split('/')[-1]
         if init:
+            print('Repo initialized at %s' % path)
             run(['git init'], path)
         else:
             if not bash_check(is_git_scr, path):
@@ -72,10 +76,12 @@ class Repo:
         self.branches: List[str] = self._branches()
         
     def _branches(self) -> List[str]:
-        bs = run(['git branch'], self.path, output = True)
-        return mapl(lambda l: l[2:], bs)
+        bs = run(['git branch | cat'], self.path, output = True)
+        r = mapl(lambda l: l[2:], bs)
+        print(r)
+        return r
 
-    def clone(self, path: str) -> Repo:
+    def clone(self, path: str):
         run(['git clone %s %s' % (self.path, path)])
         return Repo(path)
 

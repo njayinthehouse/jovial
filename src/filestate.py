@@ -7,7 +7,15 @@ from lang       import State
 class FileState(Repo):
     def __init__(self, path: str, init: bool = False) -> None:
         self.name: str = path.split('/')[-1]
-        super().__init__(path, init)
+        super().__init__('/'.join(path.split('/')[:-1]), init)
+        if init:
+            run(['echo "%s" > %s' % ('a', self.name),
+                 'git add %s' % self.name,
+                 'git commit -m "First"'], self.path)
+
+    def clone(self, path: str):
+        repo = super().clone(path)
+        return FileState(repo.path + self.name)
 
     def get(self, br: str) -> List[str]:
         if br not in self.branches:
@@ -29,3 +37,6 @@ class FileState(Repo):
         self.set(br, update(self.get(br)))
         run(['git add %s' % self.name,
              'git commit -m "%s"' % msg], self.path)
+
+    def num_lines(self, br: str) -> int:
+        return len(self.get(br))
