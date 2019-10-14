@@ -73,7 +73,7 @@ class FileState(State[str, List[str]]):
         if with_graph:
             program = ['git log --all --oneline --graph | cat']
         else:
-            program = ['git log --pretty=oneline | cat']
+            program = ['git checkout %s' % br, 'git log --oneline | cat']
         return self.run(program).split('\n')
 
     def alert(self) -> Optional[str]:

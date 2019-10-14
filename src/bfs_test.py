@@ -13,6 +13,34 @@ def make_insert(pos: int, char: str) -> Callable[[List[str]], List[str]]:
         return txt[:pos] + [char] + txt[pos:]
     return insert
 
+def add_state(s: ClonableFileState) -> bool:
+    global history
+    global state_id
+    global q
+    global r
+    q.append(s)
+    r.append(s)
+    state_id += 1
+
+def filter(history: List[str]) -> List[str]:
+    res = []
+    for s in history:
+        if s != '':
+            t = s.split(' ')
+            if t[1] != 'Merge':
+                res.append(' '.join(t[1:]))
+    return res
+
+def check_state(s: ClonableFileState) -> None:
+    global branches
+    global r
+    for o in r:
+        for br_s in branches:
+            for br_o in branches:
+                if filter(s.history(br_s)) == filter(o.history(br_o)) and s.get(br_s) != o.get(br_o):
+                    #raise Exception('Inconsistent between (%s, %s) and (%s, %s)' % (s.dir, br_s, o.dir, br_o))
+                    print('Inconsistent between (%s, %s) and (%s, %s)' % (s.dir, br_s, o.dir, br_o))
+
 prefix = '~/git_test/state'
 filename = 'test.txt'
 state = ClonableFileState(prefix + '0', filename)
@@ -25,8 +53,11 @@ for i in range(1):
 # bfs
 q = deque()
 q.append(state)
+r = []
+r.append(state)
+
 while len(q) > 0:
-    if state_id > 10000:
+    if state_id > 10000000:
         break
     state = q.popleft()
     for branch in branches:
@@ -36,12 +67,9 @@ while len(q) > 0:
                 continue
             new_state = state.clone(prefix + str(state_id))
             if new_state.merge(branch, other) == Result.Ok:
-                q.append(new_state)
-                state_id += 1
-                res = new_state.alert()
-                if res is not None:
-                    print(res)
-                    raise Exception(res)
+                if new_state.history(other) != state.history(other):
+                    add_state(new_state)
+                    check_state(new_state)
         # commit
         txt = state.get(branch)
         len_txt = len(txt)
@@ -51,14 +79,12 @@ while len(q) > 0:
                 msg = branch + ' remove ' + str(pos)
                 new_state = state.clone(prefix + str(state_id))
                 new_state.commit(branch, msg, make_remove(pos))
-                q.append(new_state)
-                state_id += 1
+                add_state(new_state)
         # commit-insert
         for pos in range(len_txt + 1):
-            for i in range(2):
+            for i in range(3):
                 char = chr(ord('a') + i)
                 msg = branch + ' insert ' + str(pos) + ' ' + char
                 new_state = state.clone(prefix + str(state_id))
                 new_state.commit(branch, msg, make_insert(pos, char))
-                q.append(new_state)
-                state_id += 1
+                add_state(new_state)
