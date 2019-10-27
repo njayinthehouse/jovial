@@ -27,7 +27,7 @@ def filter(history: List[str]) -> List[str]:
                 res.append(t[0])
     return res
 
-prefix = '~/git_test/state'
+prefix = '~/git_test2/state'
 filename = 'test.txt'
 state = ClonableFileState(prefix + '0', filename)
 state_id = 1
@@ -41,7 +41,7 @@ for i in range(2):
 q = deque()
 q.append(state)
 while len(q) > 0:
-    if state_id > 100000:
+    if state_id > 10000:
         break
     state = q.popleft()
     for branch in branches:
@@ -65,29 +65,20 @@ while len(q) > 0:
         txt = state.get(branch)
         len_txt = len(txt)
         if len_txt > 0:
-            ## commit-remove
-            #for pos in range(len_txt):
-            #    msg = branch + ' remove ' + str(pos)
-            #    new_state = state.clone(prefix + str(state_id))
-            #    new_state.commit(branch, msg, make_remove(pos))
-            #    q.append(new_state)
-            #    state_id += 1
             # commit-update
             for pos in range(len_txt):
-                for i in range(num_chars):
-                    char = chr(ord('a') + i)
-                    if char != txt[pos]:
-                        msg = branch + ' update ' + str(pos) + ' ' + char
-                        new_state = state.clone(prefix + str(state_id))
-                        new_state.commit(branch, msg, make_update(pos, char))
-                        q.append(new_state)
-                        state_id += 1
+                if txt[pos] == 'a':
+                    char = 'b'
+                    msg = branch + ' update ' + str(pos) + ' ' + char
+                    new_state = state.clone(prefix + str(state_id))
+                    new_state.commit(branch, msg, make_update(pos, char))
+                    q.append(new_state)
+                    state_id += 1
         # commit-insert
         for pos in range(len_txt + 1):
-            for i in range(num_chars):
-                char = chr(ord('a') + i)
-                msg = branch + ' insert ' + str(pos) + ' ' + char
-                new_state = state.clone(prefix + str(state_id))
-                new_state.commit(branch, msg, make_insert(pos, char))
-                q.append(new_state)
-                state_id += 1
+            char = 'a'
+            msg = branch + ' insert ' + str(pos) + ' ' + char
+            new_state = state.clone(prefix + str(state_id))
+            new_state.commit(branch, msg, make_insert(pos, char))
+            q.append(new_state)
+            state_id += 1
