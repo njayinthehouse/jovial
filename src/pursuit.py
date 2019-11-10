@@ -41,7 +41,7 @@ def make_insert(pos: int, char: str) -> Callable[[List[str]], List[str]]:
         return txt[:pos] + [char] + txt[pos:]
     return insert
 
-class FileState:
+class RawFileState:
     def __init__(self, dir_path: str, fname: str) -> None:
         self.name: str = fname
         self.dir: str = dir_path
@@ -79,26 +79,41 @@ class FileState:
         if add_to_branches:
             self.branches += [brn]
 
-    def commit(self, br: str, msg: str, update: Callable[[List[str]], List[str]]) -> str:
+    def commit(self, br: str, msg: str, update: Callable[[List[str]], List[str]]) -> None:
         lstate = self.get(br)
         lstate = update(lstate)
         self.set(br, lstate)
         program = ['git checkout %s' % br, 'git add .', 'git commit -m "%s"' % msg]
-        return self.run(program).split('\n')[1].split(' ')[1][:-1]
+        self.run(program)
 
-def next(fs: FileState, id: str, new_id: str, action: Action, char: str) -> Optional[str]:
-    for br in fs.branches:
-        fs.fork(id + br, new_id + br)
-    if isinstance(action, Insert):
-        return fs.commit(new_id + action.br, action.br + ' insert ' + str(action.i) + ' ' + char, make_insert(action.i, char))
-    if isinstance(action, Replace):
-        return fs.commit(new_id + action.br, action.br + ' replace ' + str(action.i) + ' ' + char, make_replace(action.i, char))
-    if isinstance(action, Merge) and fs.merge(new_id + action.br1, new_id + action.br2):
-        return 'success'
-    return None
+class FileState(RawFileState):
+    def next(self, id: str, new_id: str, action: Action, char: str) -> Optional[str]:
+        for br in self.branches:
+            self.fork(id + br, new_id + br)
+        if isinstance(action, Insert):
+            self.commit(new_id + action.br, action.br + ' insert ' + str(action.i) + ' ' + char, make_insert(action.i, char))
+        elif isinstance(action, Replace):
+            self.commit(new_id + action.br, action.br + ' replace ' + str(action.i) + ' ' + char, make_replace(action.i, char))
+        elif isinstance(action, Merge) and not self.merge(new_id + action.br1, new_id + action.br2):
+            return None
+        program = ['git log --oneline | head -n 1']
+        return self.run(program).split(' ')[0]
 
-def value(fs: FileState, id: str, br: str) -> List[str]:
-    return fs.get(id + br)
+    def value(self, id: str, br: str) -> List[str]:
+        return self.get(id + br)
+
+    def virtual_ancestor_value(self, commit_ids: List[str]) -> Optional[List[str]]:
+        program = ['git checkout %s > /dev/null' % commit_ids[0], 'git checkout -b #temp > /dev/null']
+        for commit_id in commit_ids:
+            program.append('git merge %s > /dev/null' % commit_id)
+        if self.run(program) != '':
+            return None
+        program = ['git checkout #temp > /dev/null', 'cat %s' % self.name, 'git checkout master > /dev/null', 'git branch -D #temp > /dev/null']
+        r = self.run(program)
+        if r == '':
+            return []
+        else:
+            return list(filter(lambda l: l != "", r.split('\n')))
 
 fs = FileState('~/new_test', 't.txt')
 branches = ['master']
@@ -108,11 +123,16 @@ for pos in range(init_file_len):
     branch = branches[0]
     char = chr(ord('a') + pos)
     msg = branch + ' insert ' + str(pos) + ' ' + char
-    print(fs.commit(branch, msg, make_insert(pos, char)))
+    fs.commit(branch, msg, make_insert(pos, char))
 for i in range(num_branches - 1):
     branches.append(chr(ord('A') + i))
     fs.fork(branches[0], branches[i + 1], True)
-print(next(fs, '', '1', Insert(3, branches[1]), 'e'))
-print(next(fs, '1', '2', Replace(1, branches[2]), 'd'))
-print(next(fs, '2', '3', Merge(branches[1], branches[2]), 'f'))
-print(value(fs, '3', branches[2]))
+
+# test begins
+commit_id_1 = fs.next('', '1', Insert(3, branches[1]), 'e')
+commit_id_2 = fs.next('1', '2', Replace(1, branches[2]), 'd')
+print(commit_id_1)
+print(commit_id_2)
+print(fs.next('2', '3', Merge(branches[1], branches[2]), 'f'))
+print(fs.value('3', branches[2]))
+print(fs.virtual_ancestor_value([commit_id_1, commit_id_2]))
