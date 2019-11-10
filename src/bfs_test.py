@@ -8,18 +8,33 @@ def make_remove(pos: int) -> Callable[[List[str]], List[str]]:
         return txt[:pos] + txt[pos+1:]
     return remove
 
+def make_update(pos: int, char: str) -> Callable[[List[str]], List[str]]:
+    def update(txt: List[str]) -> List[str]:
+        return txt[:pos] + [char] + txt[pos+1:]
+    return update
+
 def make_insert(pos: int, char: str) -> Callable[[List[str]], List[str]]:
     def insert(txt: List[str]) -> List[str]:
         return txt[:pos] + [char] + txt[pos:]
     return insert
 
-prefix = '~/git_test/state'
+def filter(history: List[str]) -> List[str]:
+    res = []
+    for s in history:
+        if s != '':
+            t = s.split(' ')
+            if t[1] != 'Merge':
+                res.append(t[0])
+    return res
+
+prefix = '~/git_test2/state'
 filename = 'test.txt'
 state = ClonableFileState(prefix + '0', filename)
 state_id = 1
 branches = ['master']
+num_chars = 2
 # fork some branches first
-for i in range(1):
+for i in range(2):
     branches.append('branch_' + str(i + 1))
     state.fork(branches[0], branches[i + 1])
 # bfs
@@ -35,30 +50,35 @@ while len(q) > 0:
             if branch == other:
                 continue
             new_state = state.clone(prefix + str(state_id))
-            if new_state.merge(branch, other) == Result.Ok:
-                q.append(new_state)
-                state_id += 1
-                res = new_state.alert()
-                if res is not None:
-                    print(res)
-                    raise Exception(res)
+            if new_state.merge(other, branch) == Result.Ok:
+                if new_state.history(branch) != state.history(branch):
+                    q.append(new_state)
+                    state_id += 1
+                    new_his = filter(new_state.history(branch))
+                    new_txt = new_state.get(branch)
+                    for another in branches:
+                        if another != branch and \
+                                new_his == filter(new_state.history(another)) and \
+                                new_txt != new_state.get(another):
+                            print('Inconsistent in %s between %s and %s' % (new_state.dir, branch, another))
         # commit
         txt = state.get(branch)
         len_txt = len(txt)
         if len_txt > 0:
-            # commit-remove
+            # commit-update
             for pos in range(len_txt):
-                msg = branch + ' remove ' + str(pos)
-                new_state = state.clone(prefix + str(state_id))
-                new_state.commit(branch, msg, make_remove(pos))
-                q.append(new_state)
-                state_id += 1
+                if txt[pos] == 'a':
+                    char = 'b'
+                    msg = branch + ' update ' + str(pos) + ' ' + char
+                    new_state = state.clone(prefix + str(state_id))
+                    new_state.commit(branch, msg, make_update(pos, char))
+                    q.append(new_state)
+                    state_id += 1
         # commit-insert
         for pos in range(len_txt + 1):
-            for i in range(2):
-                char = chr(ord('a') + i)
-                msg = branch + ' insert ' + str(pos) + ' ' + char
-                new_state = state.clone(prefix + str(state_id))
-                new_state.commit(branch, msg, make_insert(pos, char))
-                q.append(new_state)
-                state_id += 1
+            char = 'a'
+            msg = branch + ' insert ' + str(pos) + ' ' + char
+            new_state = state.clone(prefix + str(state_id))
+            new_state.commit(branch, msg, make_insert(pos, char))
+            q.append(new_state)
+            state_id += 1
