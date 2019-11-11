@@ -170,60 +170,153 @@ class Leaf:
 def select(leaves: List[Leaf]):
     return leaves[-1]
 
-fs = FileState('~/new_test', 't.txt')
-branches = ['master']
-num_branches = 3
-init_file_len = 3
-for pos in range(init_file_len):
-    br = branches[0]
-    char = chr(ord('a') + pos)
-    msg = br + ' insert ' + str(pos) + ' ' + char
-    fs.commit(br, msg, make_insert(pos, char))
-for i in range(num_branches - 1):
-    branches.append(chr(ord('A') + i))
-    fs.fork(branches[0], branches[i + 1], True)
-commit_id = fs.last_commit_id(branches[0])
-branch_info = BranchInfo(commit_id, fs.value('', branches[0]), {commit_id})
-branches_info = {br: branch_info for br in branches}
-#for u in branches_info:
-#    print('%s,,, %s' % (u, branches_info[u]))
-leaves = [Leaf('', [Insert(0, 'x', branches[0])], Graph([commit_id], []), branches_info)]
-id = 1
-while len(leaves) < 5:
-    leaf = select(leaves)
-    (action_set, graph, branches_info) = leaf.action_set, leaf.graph, leaf.branches_info
-    action = action_set[0]
-    new_id = str(id)
-    commit_id = fs.next(leaf.id, new_id, action)
-    id += 1
-    if commit_id is None:
-        continue
-    new_action_set = action_set
-    new_graph = deepcopy(graph)
-    new_branches_info = copy(branches_info)
-    if isinstance(action, Insert) or isinstance(action, Replace):
-        new_graph.insert(commit_id, [branches_info[action.br].head])
-        new_branches_info[action.br] = BranchInfo(commit_id, fs.value(new_id, action.br), branches_info[action.br].commit_history.union({commit_id}))
-    else:
-        assert isinstance(action, Merge)
-        br1, br2 = action.br1, action.br2
-        if commit_id == branches_info[br2].head:
-            continue
-        if commit_id == branches_info[br1].head:
-            new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br1].commit_history)
-        else:
-            new_graph.insert(commit_id, [branches_info[br1].head, branches_info[br2].head])
-            new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br2].commit_history.union(branches_info[br1].commit_history).union({commit_id}))
-            inconsistence = False
-            for br in branches:
-                if br != br2 and \
-                        new_branches_info[br].commit_history == new_branches_info[br2].commit_history and \
-                        new_branches_info[br].value != new_branches_info[br2].value:
-                    print('Inconsistence: %s(%s, %s)', new_id, br, br2)
-                    inconsistence = True
-            if inconsistence:
-                continue
-    leaves.append(Leaf(new_id, new_action_set, new_graph, new_branches_info))
+def flimit(q):
+    def aux(f, xs):
+        if xs == []:
+            raise Exception('Empty list!')
+        r = xs[0]
+        for x in xs[1:]:
+            if q(f(x), f(r)):
+                r = x
+        return r
+    return aux
+
+fmax = flimit(lambda x, y: x > y)
+fmin = flimit(lambda x, y: x < y)
+
+def lcs(xs, ys):
+    n = len(xs)
+    m = len(ys)
+    opt = [[[] for i in range(m + 1)] for j in range(n + 1)]
+
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            if xs[i - 1] == ys[j - 1]:
+                opt[i][j] = fmax(len, [opt[i - 1][j], opt[i][j - 1], opt[i - 1][j - 1] + [xs[i - 1]]])
+            else:
+                opt[i][j] = fmax(len, [opt[i - 1][j], opt[i][j - 1]])
+    return opt[n][m]
+
+def delta(ys, zs):
+    xs = lcs(ys, zs)
+    i = j = k = q = 0
+    nx = len(xs)
+    ny = len(ys)
+    nz = len(zs)
+    r = []
+
+    while i < nx:
+        if xs[i] == ys[j] == zs[k]:
+            r += [q]
+            i += 1
+            j += 1
+            k += 1
+            q += 1
+        elif xs[i] != ys[j]:
+            r += [q]
+            j += 1
+        else: # if ys[j] != zs[k]
+            k += 1
+            q += 1
+
+    r += [nz] * (ny - j + 1)
+    return r
+
+def alpha(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> int:
+    lca = fs.virtual_ancestor_value(g.lca(br1.head, br2.head))
+    d = delta(lca, br2.value)
+    n = len(d)
+    return flimit(lambda x, y: x >= i and x < y)(id, d)
+
+def gamma(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> set[int]:
+    lca = fs.virtual_ancestor_value(g.lca(br1.head, br2.head))
+    d = delta(lca, br2.value)
+    return set(range(d[i - 1] + 1, d[i] + 1))
+
+def beta(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> set[int]:
+    j = alpha(fs, g, br2, i, br1)
+    return gamma(fs, g, br1, j, br2)
+
+class ActionSet:
+    def __init__(self, chars: List[str], branches: List[BranchInfo], n: int = 3): 
+        self.n = {br: set(range(n)) for br in branches}
+        self.cs = set(chars)
+        self.brs = branches
+        self.bri = set(bs)
+        self.brr = set(bs)
+        brm = []
+        for br in bs:
+            for br1 in bs:
+                if br != br1:
+                    brm += [(br, br1)]
+        self.brm = set(brm)
+
+    def on_insert(self, i, br):
+        n = len(self.n[br])
+        self.n[br].add(n)
+        other_brs = self.branches.filter(lambda b: b != br) 
+
+
+
+
+
+if __name__ == '__main__':
+    fs = FileState('~/new_test', 't.txt')
+    branches = ['master']
+    num_branches = 3
+    init_file_len = 3
+    for pos in range(init_file_len):
+        br = branches[0]
+        char = chr(ord('a') + pos)
+        msg = br + ' insert ' + str(pos) + ' ' + char
+        fs.commit(br, msg, make_insert(pos, char))
+    for i in range(num_branches - 1):
+        branches.append(chr(ord('A') + i))
+        fs.fork(branches[0], branches[i + 1], True)
+    commit_id = fs.last_commit_id(branches[0])
+    branch_info = BranchInfo(commit_id, fs.value('', branches[0]), {commit_id})
+    branches_info = {br: branch_info for br in branches}
+    graph = Graph([commit_id], [])
+
+    #for u in branches_info:
+    #    print('%s,,, %s' % (u, branches_info[u]))
+#    leaves = [Leaf('', [Insert(0, 'x', branches[0])], Graph([commit_id], []), branches_info)]
+#    id = 1
+#    while len(leaves) < 5:
+#        leaf = select(leaves)
+#        (action_set, graph, branches_info) = leaf.action_set, leaf.graph, leaf.branches_info
+#        action = action_set[0]
+#        new_id = str(id)
+#        commit_id = fs.next(leaf.id, new_id, action)
+#        id += 1
+#        if commit_id is None:
+#            continue
+#        new_action_set = action_set
+#        new_graph = deepcopy(graph)
+#        new_branches_info = copy(branches_info)
+#        if isinstance(action, Insert) or isinstance(action, Replace):
+#            new_graph.insert(commit_id, [branches_info[action.br].head])
+#            new_branches_info[action.br] = BranchInfo(commit_id, fs.value(new_id, action.br), branches_info[action.br].commit_history.union({commit_id}))
+#        else:
+#            assert isinstance(action, Merge)
+#            br1, br2 = action.br1, action.br2
+#            if commit_id == branches_info[br2].head:
+#                continue
+#            if commit_id == branches_info[br1].head:
+#                new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br1].commit_history)
+#            else:
+#                new_graph.insert(commit_id, [branches_info[br1].head, branches_info[br2].head])
+#                new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br2].commit_history.union(branches_info[br1].commit_history).union({commit_id}))
+#                inconsistence = False
+#                for br in branches:
+#                    if br != br2 and \
+#                            new_branches_info[br].commit_history == new_branches_info[br2].commit_history and \
+#                            new_branches_info[br].value != new_branches_info[br2].value:
+#                        print('Inconsistence: %s(%s, %s)', new_id, br, br2)
+#                        inconsistence = True
+#                if inconsistence:
+#                    continue
+#        leaves.append(Leaf(new_id, new_action_set, new_graph, new_branches_info))
 
 # test begins
 #commit_id_1 = fs.next('', '1', Insert(3, branches[1]), 'e')
