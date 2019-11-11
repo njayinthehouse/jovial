@@ -170,7 +170,7 @@ class Leaf:
 def select(leaves: List[Leaf]):
     return leaves[-1]
 
-def flimit(q):
+"""def flimit(q):
     def aux(f, xs):
         if xs == []:
             raise Exception('Empty list!')
@@ -256,9 +256,25 @@ class ActionSet:
         self.n[br].add(n)
         other_brs = self.branches.filter(lambda b: b != br) 
 
-
-
-
+"""
+def update(fs: FileState, id: str, new_id: str, graph: Graph, branches_info: List[BranchInfo], action: Action) -> (Graph, List[BranchInfo]):
+    commit_id = fs.next(id, new_id, action)
+    new_graph = deepcopy(graph)
+    new_branches_info = copy(branches_info)
+    if isinstance(action, Insert) or isinstance(action, Replace):
+        new_graph.insert(commit_id, [branches_info[action.br].head])
+        new_branches_info[action.br] = BranchInfo(commit_id, fs.value(new_id, action.br), branches_info[action.br].commit_history.union({commit_id}))
+    else:
+        assert isinstance(action, Merge)
+        br1, br2 = action.br1, action.br2
+        if commit_id == branches_info[br2].head:
+            return
+        if commit_id == branches_info[br1].head:
+            new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br1].commit_history)
+        else:
+            new_graph.insert(commit_id, [branches_info[br1].head, branches_info[br2].head])
+            new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br2].commit_history.union(branches_info[br1].commit_history).union({commit_id}))
+    return (new_graph, new_branches_info)
 
 if __name__ == '__main__':
     fs = FileState('~/new_test', 't.txt')
@@ -277,7 +293,7 @@ if __name__ == '__main__':
     branch_info = BranchInfo(commit_id, fs.value('', branches[0]), {commit_id})
     branches_info = {br: branch_info for br in branches}
     graph = Graph([commit_id], [])
-
+    update(fs, '', '1', graph, branches_info, Insert(3, 'e', branches[1]))
     #for u in branches_info:
     #    print('%s,,, %s' % (u, branches_info[u]))
 #    leaves = [Leaf('', [Insert(0, 'x', branches[0])], Graph([commit_id], []), branches_info)]
