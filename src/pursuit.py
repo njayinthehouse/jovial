@@ -243,23 +243,66 @@ def beta(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
     return k
 
 class ActionSet:
-    def __init__(self, chars: List[str], branches: List[BranchInfo], n: int = 3): 
-        self.n = {br: set(range(n)) for br in branches}
+    def __init__(self, fs: FileState, graph: Graph, chars: List[str], branches: Dict[str, BranchInfo], n_lines: int = 3): 
+        assert len(branches) == 3
+        self.ins = {br: set(range(n_lines + 1)) for (br, bi) in branches.items()}
+        self.rep = {br: set(range(n_lines)) for (br, bi) in branches.items()}
         self.cs = set(chars)
         self.brs = branches
-        self.bri = set(bs)
-        self.brr = set(bs)
         brm = []
         for br in bs:
             for br1 in bs:
                 if br != br1:
                     brm += [(br, br1)]
         self.brm = set(brm)
+        self.fs = fs
+        self.g = graph
 
     def on_insert(self, i, br):
         n = len(self.n[br])
         self.n[br].add(n)
-        other_brs = self.branches.filter(lambda b: b != br) 
+        other_brs = self.branches.filter(lambda b: b != br)
+        assert len(other_brs) == 2
+        js = beta(self.fs, self.g, self.brs[br], i, other_brs[0])
+        assert len(js) == 1
+        j = js.pop()
+        self.ins[other_brs[0]] -= set([j])
+        self.rep[other_brs[0]] -= set([j - 1, j])
+        ks = beta(self.fs, self.g, self.brs[br], i, other_brs[1])
+        assert len(ks) == 1
+        k = ks.pop()
+        self.ins[other_brs[1]] -= set([k])
+        self.rep[other_brs[1]] -= set([k - 1, k])
+        self.brm.add(br)
+
+    def on_replace(self, i, br):
+        n = len(self.n[br])
+        self.n[br].add(n)
+        other_brs = self.branches.filter(lambda b: b != br)
+        assert len(other_brs) == 2
+        js = beta(self.fs, self.g, self.brs[br], i, other_brs[0])
+        assert len(js) == 1
+        j = js.pop()
+        self.rep[other_brs[0]] -= set([j])
+        self.ins[other_brs[0]] -= set([j + 1, j])
+        ks = beta(self.fs, self.g, self.brs[br], i, other_brs[1])
+        assert len(ks) == 1
+        k = ks.pop()
+        self.rep[other_brs[1]] -= set([k])
+        self.ins[other_brs[1]] -= set([k + 1, k])
+        self.brm.add(br)
+
+    def on_merge(self, br1, br2):
+        js = set([])
+        ks = set([])
+        for i in self.ins[br1]:
+            js |= beta(self.fs, self.g, self.brs[br1], i, self.brs[br2])
+        for i in self.rep[br1]:
+            ks |= beta(self.fs, self.g, self.brs[br1], i, self.brs[br2])
+        self.ins[br2] |= js
+        self.rep[br2] |= ks
+        self.brm -= set([(br1, br2)])
+
 
 def update(fs: FileState, id: str, new_id: str, graph: Graph, branches_info: List[BranchInfo], action: Action) -> (Graph, List[BranchInfo]):
     commit_id = fs.next(id, new_id, action)
