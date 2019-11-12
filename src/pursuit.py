@@ -102,6 +102,10 @@ class RawFileState:
         return self.run(program).split(' ')[0]
 
 class FileState(RawFileState):
+    def __init__(self, dir_path: str, fname: str, count: int = 0) -> None:
+        RawFileState.__init__(self, dir_path, fname)
+        self.count = 0
+
     def next(self, id: str, new_id: str, action: Action) -> Optional[str]:
         for br in self.branches:
             self.fork(id + br, new_id + br)
@@ -120,10 +124,22 @@ class FileState(RawFileState):
     def value(self, id: str, br: str) -> List[str]:
         return self.get(id + br)
 
+    def virtual_ancestor(self, commit_ids: List[str]) -> Optional[str]:
+        br = 'temp#' + str(self.count)
+        self.count += 1
+        program = ['git checkout %s > /dev/null' % commit_ids[0], 'git checkout -b %s > /dev/null' % br]
+        for commit_id in commit_ids:
+            program.append('git merge %s > /dev/null' % commit_id)
+        program.append('git ls-files -u')
+        if self.run(program) != '':
+            return None
+        return self.last_commit_id(br)
+
     def virtual_ancestor_value(self, commit_ids: List[str]) -> Optional[List[str]]:
         program = ['git checkout %s > /dev/null' % commit_ids[0], 'git checkout -b #temp > /dev/null']
         for commit_id in commit_ids:
             program.append('git merge %s > /dev/null' % commit_id)
+        program.append('git ls-files -u')
         if self.run(program) != '':
             return None
         program = ['git checkout #temp > /dev/null', 'cat %s' % self.name, 'git checkout master > /dev/null', 'git branch -D #temp > /dev/null']
@@ -393,58 +409,65 @@ if __name__ == '__main__':
     action_set = ActionSet(fs, graph, [chr(ord('a') + i) for i in range(26)], branches_info, init_file_len)
     #print(action_set)
     id = 1
-    init_leaves = [Leaf('', action_set, graph, branches_info)]
-    times = 200000000
-    while times > 0:
-        print(times)
-        times -= 1
-        leaves = copy(init_leaves)
-        while len(leaves) < 20:
-            leaf = select(leaves)
-            (action_set, graph, branches_info) = leaf.action_set, leaf.graph, leaf.branches_info
-            action = action_set.pop()
-            new_id = str(id)
-            commit_id = fs.next(leaf.id, new_id, action)
-            id += 1
-            if commit_id is None:
+    leaves = [Leaf('', action_set, graph, branches_info)]
+    while True:
+        leaf = select(leaves)
+        (action_set, graph, branches_info) = leaf.action_set, leaf.graph, leaf.branches_info
+        action = action_set.pop()
+        new_id = str(id)
+        commit_id = fs.next(leaf.id, new_id, action)
+        id += 1
+        if commit_id is None:
+            leaves.pop()
+            print('pop')
+            continue
+        new_graph = deepcopy(graph)
+        new_branches_info = copy(branches_info)
+        if isinstance(action, Insert) or isinstance(action, Replace):
+            if commit_id == branches_info[action.br].head:
                 continue
-            new_graph = deepcopy(graph)
-            new_branches_info = copy(branches_info)
-            if isinstance(action, Insert) or isinstance(action, Replace):
-                new_graph.insert(commit_id, [branches_info[action.br].head])
-                new_branches_info[action.br] = BranchInfo(commit_id, fs.value(new_id, action.br), branches_info[action.br].commit_history.union({commit_id}))
+            new_graph.insert(commit_id, [branches_info[action.br].head])
+            new_branches_info[action.br] = BranchInfo(commit_id, fs.value(new_id, action.br), branches_info[action.br].commit_history.union({commit_id}))
+        else:
+            assert isinstance(action, Merge)
+            br1, br2 = action.br1, action.br2
+            if commit_id == branches_info[br2].head:
+                continue
+            if commit_id == branches_info[br1].head:
+                new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br1].commit_history)
             else:
-                assert isinstance(action, Merge)
-                br1, br2 = action.br1, action.br2
-                if commit_id == branches_info[br2].head:
+                new_graph.insert(commit_id, [branches_info[br1].head, branches_info[br2].head])
+                new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br2].commit_history.union(branches_info[br1].commit_history).union({commit_id}))
+                inconsistence = False
+                for br in branches:
+                    if br != br2 and \
+                            new_branches_info[br].commit_history == new_branches_info[br2].commit_history and \
+                            new_branches_info[br].value != new_branches_info[br2].value:
+                        print('Inconsistence: %s(%s, %s)', new_id, br, br2)
+                        inconsistence = True
+                        assert False
+                if inconsistence:
                     continue
-                if commit_id == branches_info[br1].head:
-                    new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br1].commit_history)
-                else:
-                    new_graph.insert(commit_id, [branches_info[br1].head, branches_info[br2].head])
-                    new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br2].commit_history.union(branches_info[br1].commit_history).union({commit_id}))
-                    inconsistence = False
-                    for br in branches:
-                        if br != br2 and \
-                                new_branches_info[br].commit_history == new_branches_info[br2].commit_history and \
-                                new_branches_info[br].value != new_branches_info[br2].value:
-                            print('Inconsistence: %s(%s, %s)', new_id, br, br2)
-                            inconsistence = True
-                    if inconsistence:
-                        continue
+        if len(leaves) < 20 and (randint(1, 10) > 3 or len(leaves) == 1):
+            print(action)
+            print(new_graph.g)
             new_action_set = deepcopy(action_set)
-            new_action_set.update(action)
             new_action_set.branches = new_branches_info
             new_action_set.g = new_graph
-            #print(action)
-            #print(new_action_set)
+            new_action_set.update(action)
             leaves.append(Leaf(new_id, new_action_set, new_graph, new_branches_info))
-
-# test begins
-#commit_id_1 = fs.next('', '1', Insert(3, branches[1]), 'e')
-#commit_id_2 = fs.next('1', '2', Replace(1, branches[2]), 'd')
-#print(commit_id_1)
-#print(commit_id_2)
-#print(fs.next('2', '3', Merge(branches[1], branches[2]), 'f'))
-#print(fs.value('3', branches[2]))
-#print(fs.virtual_ancestor_value([commit_id_1, commit_id_2]))
+        else:
+            print('pop')
+            leaves.pop()
+"""test begins
+commit_id_1 = fs.next('', '1', Insert(3, 'e', branches[1]))
+commit_id_2 = fs.next('1', '2', Replace(1, 'd', branches[2]))
+print(commit_id_1)
+print(commit_id_2)
+print(fs.next('2', '3', Merge(branches[1], branches[2])))
+print(fs.value('3', branches[2]))
+print(fs.virtual_ancestor_value([commit_id_1, commit_id_2]))
+commit_id_3 = fs.virtual_ancestor([commit_id_1, commit_id_2])
+print(commit_id_3)
+print(fs.get(commit_id_3))
+"""
