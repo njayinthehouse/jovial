@@ -170,7 +170,7 @@ class Leaf:
 def select(leaves: List[Leaf]):
     return leaves[-1]
 
-"""def flimit(q):
+def flimit(q):
     def aux(f, xs):
         if xs == []:
             raise Exception('Empty list!')
@@ -226,16 +226,21 @@ def alpha(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> 
     lca = fs.virtual_ancestor_value(g.lca(br1.head, br2.head))
     d = delta(lca, br2.value)
     n = len(d)
-    return flimit(lambda x, y: x >= i and x < y)(id, d)
+    for (j, n) in enumerate(d):
+        if n >= i:
+            return j
 
-def gamma(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> set[int]:
+def gamma(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
     lca = fs.virtual_ancestor_value(g.lca(br1.head, br2.head))
     d = delta(lca, br2.value)
-    return set(range(d[i - 1] + 1, d[i] + 1))
+    return set(range(d[i - 1] + 1, d[i] + 1) if i > 0 else range(d[i] + 1))
 
-def beta(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> set[int]:
+def beta(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
     j = alpha(fs, g, br2, i, br1)
-    return gamma(fs, g, br1, j, br2)
+    print(j)
+    k = gamma(fs, g, br1, j, br2)
+    print(k)
+    return k
 
 class ActionSet:
     def __init__(self, chars: List[str], branches: List[BranchInfo], n: int = 3): 
@@ -256,7 +261,6 @@ class ActionSet:
         self.n[br].add(n)
         other_brs = self.branches.filter(lambda b: b != br) 
 
-"""
 def update(fs: FileState, id: str, new_id: str, graph: Graph, branches_info: List[BranchInfo], action: Action) -> (Graph, List[BranchInfo]):
     commit_id = fs.next(id, new_id, action)
     new_graph = deepcopy(graph)
@@ -293,9 +297,12 @@ if __name__ == '__main__':
     branch_info = BranchInfo(commit_id, fs.value('', branches[0]), {commit_id})
     branches_info = {br: branch_info for br in branches}
     graph = Graph([commit_id], [])
-    update(fs, '', '1', graph, branches_info, Insert(3, 'e', branches[1]))
-    #for u in branches_info:
-    #    print('%s,,, %s' % (u, branches_info[u]))
+    graph, branches_info = update(fs, '', '1', graph, branches_info, Insert(2, 'e', branches[1]))
+    graph, branches_info = update(fs, '1', '2', graph, branches_info, Insert(2, 'd', branches[1]))
+    graph, branches_info = update(fs, '2', '3', graph, branches_info, Insert(2, 'q', branches[2]))
+    print(beta(fs, graph, branches_info[branches[2]], 0, branches_info[branches[1]]))
+    for u in branches_info:
+        print('%s,,, %s' % (u, branches_info[u]))
 #    leaves = [Leaf('', [Insert(0, 'x', branches[0])], Graph([commit_id], []), branches_info)]
 #    id = 1
 #    while len(leaves) < 5:
