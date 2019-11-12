@@ -303,6 +303,14 @@ class ActionSet:
         self.rep[br2] |= ks
         self.brm -= set([(br1, br2)])
 
+    def update(self, action):
+        if type(action) == Insert:
+            self.on_insert(action.i, action.br)
+        elif type(action) == Replace:
+            self.on_replace(action.i, action.br)
+        else:
+            self.on_merge(action.br1, action.br2)
+
     def pop(self):
         q1 = randint(1, 10)
         if q1 <= 2:
