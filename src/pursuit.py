@@ -3,7 +3,7 @@ from abc import ABC
 import subprocess
 from typing import Callable, List, Optional, Dict, Set, Generic, Tuple, TypeVar
 from enum import Enum
-from random import randint
+from random import randint, choice
 from copy import copy, deepcopy
 
 class Action(ABC): pass
@@ -12,13 +12,22 @@ class Insert(Action):
     def __init__(self, i: int, x: str, br: str):
         self.i, self.x, self.br = i, x, br
 
+    def __str__(self):
+        return 'insert ' + str(self.i) + ' ' + self.x + ' ' + self.br
+
 class Replace(Action):
     def __init__(self, i: int, x: str, br: str):
         self.i, self.x, self.br = i, x, br
 
+    def __str__(self):
+        return 'replace ' + str(self.i) + ' ' + self.x + ' ' + self.br
+
 class Merge(Action):
     def __init__(self, br1: str, br2: str):
         self.br1, self.br2 = br1, br2
+
+    def __str__(self):
+        return 'merge ' + self.br1 + ' ' + self.br2
 
 LANGUAGE = '/bin/bash'
 
@@ -229,6 +238,7 @@ def alpha(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> 
     for (j, n) in enumerate(d):
         if n >= i:
             return j
+    return len(d) - 1
 
 def gamma(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
     lca = fs.virtual_ancestor_value(g.lca(br1.head, br2.head))
@@ -237,9 +247,7 @@ def gamma(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
 
 def beta(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
     j = alpha(fs, g, br2, i, br1)
-    print(j)
     k = gamma(fs, g, br1, j, br2)
-    print(k)
     return k
 
 class ActionSet:
@@ -249,55 +257,56 @@ class ActionSet:
         self.rep = {br: set(range(n_lines)) for (br, bi) in branches.items()}
         self.cs = set(chars)
         self.brs = branches
-        brm = []
-        for br in bs:
-            for br1 in bs:
-                if br != br1:
-                    brm += [(br, br1)]
-        self.brm = set(brm)
+        self.brm = set([])
         self.fs = fs
         self.g = graph
 
+    def __str__(self):
+        return 'Insertions:' + str(self.ins) + '\nReplacements:' + str(self.rep) + '\nMerges:' + str(self.brm)
+
     def on_insert(self, i, br):
-        n = len(self.n[br])
-        self.n[br].add(n)
-        other_brs = self.branches.filter(lambda b: b != br)
+        n = len(self.ins[br])
+        self.ins[br].add(n)
+        self.rep[br].add(n - 1)
+        other_brs = list(filter(lambda b: b != br, list(self.brs.keys())))
         assert len(other_brs) == 2
-        js = beta(self.fs, self.g, self.brs[br], i, other_brs[0])
+        js = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[0]])
         assert len(js) == 1
         j = js.pop()
         self.ins[other_brs[0]] -= set([j])
         self.rep[other_brs[0]] -= set([j - 1, j])
-        ks = beta(self.fs, self.g, self.brs[br], i, other_brs[1])
+        ks = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[1]])
         assert len(ks) == 1
         k = ks.pop()
         self.ins[other_brs[1]] -= set([k])
         self.rep[other_brs[1]] -= set([k - 1, k])
-        self.brm.add(br)
+        self.brm |= set([(br, other_brs[0]), (br, other_brs[1])])
 
     def on_replace(self, i, br):
-        n = len(self.n[br])
-        self.n[br].add(n)
-        other_brs = self.branches.filter(lambda b: b != br)
+        n = len(self.rep[br])
+        self.rep[br].add(n)
+        other_brs = list(filter(lambda b: b != br, list(self.brs.keys())))
         assert len(other_brs) == 2
-        js = beta(self.fs, self.g, self.brs[br], i, other_brs[0])
+        js = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[0]])
         assert len(js) == 1
         j = js.pop()
         self.rep[other_brs[0]] -= set([j])
         self.ins[other_brs[0]] -= set([j + 1, j])
-        ks = beta(self.fs, self.g, self.brs[br], i, other_brs[1])
+        ks = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[1]])
         assert len(ks) == 1
         k = ks.pop()
         self.rep[other_brs[1]] -= set([k])
         self.ins[other_brs[1]] -= set([k + 1, k])
-        self.brm.add(br)
+        self.brm |= set([(br, other_brs[0]), (br, other_brs[1])])
 
     def on_merge(self, br1, br2):
         js = set([])
         ks = set([])
         for i in self.ins[br1]:
+            assert i is not None
             js |= beta(self.fs, self.g, self.brs[br1], i, self.brs[br2])
         for i in self.rep[br1]:
+            assert i is not None
             ks |= beta(self.fs, self.g, self.brs[br1], i, self.brs[br2])
         self.ins[br2] |= js
         self.rep[br2] |= ks
@@ -314,24 +323,28 @@ class ActionSet:
     def pop(self):
         q1 = randint(1, 10)
         if q1 <= 2:
-            x = self.cs.pop()
-            self.cs.add(x)
+            x = choice(list(self.cs))
             q2 = randint(0, 2)
-            br = self.brs.keys()[q2]
-            i = self.ins[br].pop()
-            self.ins[br].add(i)
+            br = list(self.brs.keys())[q2]
+            if len(self.ins[br]) > 0:
+                i = choice(list(self.ins[br]))
+            else:
+                return self.pop()
             return Insert(i, x, br)
         elif q1 <= 4:
-            x = self.cs.pop()
-            self.cs.add(x)
+            x = choice(list(self.cs))
             q2 = randint(0, 2)
-            br = self.brs.keys()[q2]
-            i = self.rep[br].pop()
-            self.rep[br].add(i)
+            br = list(self.brs.keys())[q2]
+            if len(self.rep[br]) > 0:
+                i = choice(list(self.rep[br]))
+            else:
+                return self.pop()
             return Replace(i, x, br)
         else:
-            br1, br2 = self.brm.pop()
-            self.brm.add((br1, br2))
+            if len(self.brm) > 0:
+                br1, br2 = choice(list(self.brm))
+            else:
+                return self.pop()
             return Merge(br1, br2)
 
 
@@ -371,49 +384,61 @@ if __name__ == '__main__':
     branch_info = BranchInfo(commit_id, fs.value('', branches[0]), {commit_id})
     branches_info = {br: branch_info for br in branches}
     graph = Graph([commit_id], [])
-    graph, branches_info = update(fs, '', '1', graph, branches_info, Insert(2, 'e', branches[1]))
-    graph, branches_info = update(fs, '1', '2', graph, branches_info, Insert(2, 'd', branches[1]))
-    graph, branches_info = update(fs, '2', '3', graph, branches_info, Insert(2, 'q', branches[2]))
-    print(beta(fs, graph, branches_info[branches[2]], 0, branches_info[branches[1]]))
-    for u in branches_info:
-        print('%s,,, %s' % (u, branches_info[u]))
-#    leaves = [Leaf('', [Insert(0, 'x', branches[0])], Graph([commit_id], []), branches_info)]
-#    id = 1
-#    while len(leaves) < 5:
-#        leaf = select(leaves)
-#        (action_set, graph, branches_info) = leaf.action_set, leaf.graph, leaf.branches_info
-#        action = action_set[0]
-#        new_id = str(id)
-#        commit_id = fs.next(leaf.id, new_id, action)
-#        id += 1
-#        if commit_id is None:
-#            continue
-#        new_action_set = action_set
-#        new_graph = deepcopy(graph)
-#        new_branches_info = copy(branches_info)
-#        if isinstance(action, Insert) or isinstance(action, Replace):
-#            new_graph.insert(commit_id, [branches_info[action.br].head])
-#            new_branches_info[action.br] = BranchInfo(commit_id, fs.value(new_id, action.br), branches_info[action.br].commit_history.union({commit_id}))
-#        else:
-#            assert isinstance(action, Merge)
-#            br1, br2 = action.br1, action.br2
-#            if commit_id == branches_info[br2].head:
-#                continue
-#            if commit_id == branches_info[br1].head:
-#                new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br1].commit_history)
-#            else:
-#                new_graph.insert(commit_id, [branches_info[br1].head, branches_info[br2].head])
-#                new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br2].commit_history.union(branches_info[br1].commit_history).union({commit_id}))
-#                inconsistence = False
-#                for br in branches:
-#                    if br != br2 and \
-#                            new_branches_info[br].commit_history == new_branches_info[br2].commit_history and \
-#                            new_branches_info[br].value != new_branches_info[br2].value:
-#                        print('Inconsistence: %s(%s, %s)', new_id, br, br2)
-#                        inconsistence = True
-#                if inconsistence:
-#                    continue
-#        leaves.append(Leaf(new_id, new_action_set, new_graph, new_branches_info))
+    #graph, branches_info = update(fs, '', '1', graph, branches_info, Insert(2, 'e', branches[1]))
+    #graph, branches_info = update(fs, '1', '2', graph, branches_info, Insert(2, 'd', branches[1]))
+    #graph, branches_info = update(fs, '2', '3', graph, branches_info, Insert(2, 'q', branches[2]))
+    #print(beta(fs, graph, branches_info[branches[2]], 0, branches_info[branches[1]]))
+    #for u in branches_info:
+    #    print('%s,,, %s' % (u, branches_info[u]))
+    action_set = ActionSet(fs, graph, [chr(ord('a') + i) for i in range(26)], branches_info, init_file_len)
+    #print(action_set)
+    id = 1
+    init_leaves = [Leaf('', action_set, graph, branches_info)]
+    times = 200000000
+    while times > 0:
+        print(times)
+        times -= 1
+        leaves = copy(init_leaves)
+        while len(leaves) < 20:
+            leaf = select(leaves)
+            (action_set, graph, branches_info) = leaf.action_set, leaf.graph, leaf.branches_info
+            action = action_set.pop()
+            new_id = str(id)
+            commit_id = fs.next(leaf.id, new_id, action)
+            id += 1
+            if commit_id is None:
+                continue
+            new_graph = deepcopy(graph)
+            new_branches_info = copy(branches_info)
+            if isinstance(action, Insert) or isinstance(action, Replace):
+                new_graph.insert(commit_id, [branches_info[action.br].head])
+                new_branches_info[action.br] = BranchInfo(commit_id, fs.value(new_id, action.br), branches_info[action.br].commit_history.union({commit_id}))
+            else:
+                assert isinstance(action, Merge)
+                br1, br2 = action.br1, action.br2
+                if commit_id == branches_info[br2].head:
+                    continue
+                if commit_id == branches_info[br1].head:
+                    new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br1].commit_history)
+                else:
+                    new_graph.insert(commit_id, [branches_info[br1].head, branches_info[br2].head])
+                    new_branches_info[br2] = BranchInfo(commit_id, fs.value(new_id, br2), branches_info[br2].commit_history.union(branches_info[br1].commit_history).union({commit_id}))
+                    inconsistence = False
+                    for br in branches:
+                        if br != br2 and \
+                                new_branches_info[br].commit_history == new_branches_info[br2].commit_history and \
+                                new_branches_info[br].value != new_branches_info[br2].value:
+                            print('Inconsistence: %s(%s, %s)', new_id, br, br2)
+                            inconsistence = True
+                    if inconsistence:
+                        continue
+            new_action_set = deepcopy(action_set)
+            new_action_set.update(action)
+            new_action_set.branches = new_branches_info
+            new_action_set.g = new_graph
+            #print(action)
+            #print(new_action_set)
+            leaves.append(Leaf(new_id, new_action_set, new_graph, new_branches_info))
 
 # test begins
 #commit_id_1 = fs.next('', '1', Insert(3, branches[1]), 'e')
