@@ -303,6 +303,29 @@ class ActionSet:
         self.rep[br2] |= ks
         self.brm -= set([(br1, br2)])
 
+    def pop(self):
+        q1 = randint(1, 10)
+        if q1 <= 2:
+            x = self.cs.pop()
+            self.cs.add(x)
+            q2 = randint(0, 2)
+            br = self.brs.keys()[q2]
+            i = self.ins[br].pop()
+            self.ins[br].add(i)
+            return Insert(i, x, br)
+        elif q1 <= 4:
+            x = self.cs.pop()
+            self.cs.add(x)
+            q2 = randint(0, 2)
+            br = self.brs.keys()[q2]
+            i = self.rep[br].pop()
+            self.rep[br].add(i)
+            return Replace(i, x, br)
+        else:
+            br1, br2 = self.brm.pop()
+            self.brm.add((br1, br2))
+            return Merge(br1, br2)
+
 
 def update(fs: FileState, id: str, new_id: str, graph: Graph, branches_info: List[BranchInfo], action: Action) -> (Graph, List[BranchInfo]):
     commit_id = fs.next(id, new_id, action)
