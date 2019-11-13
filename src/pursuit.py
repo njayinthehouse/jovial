@@ -82,7 +82,10 @@ class RawFileState:
 
     def merge(self, br1: str, br2: str) -> bool:
         program = ['git checkout %s > /dev/null' % br2, 'git merge %s > /dev/null' % br1, 'git ls-files -u']
-        return self.run(program) == ''
+        if self.run(program) != '':
+            self.run(['git reset --hard HEAD'])
+            return False
+        return True
 
     def fork(self, br: str, brn: str, add_to_branches = False) -> None:
         program = ['git checkout %s' % br, 'git checkout -b %s' % brn]
@@ -337,7 +340,7 @@ class ActionSet:
             self.on_merge(action.br1, action.br2)
 
     def pop(self):
-        q1 = randint(1, 10)
+        q1 = randint(1, 12)
         if q1 <= 2:
             x = choice(list(self.cs))
             q2 = randint(0, 2)
