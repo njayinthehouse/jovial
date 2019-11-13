@@ -258,7 +258,7 @@ class ActionSetGenerator:
         else:
             return self._lca[(br2, br1)]
 
-    def _insertable(self, br1: str, br: str) -> set[int]:
+    def _insertable(self, br1: str, br: str):
         c1, c = self.head(br1), self.head(br)
         xs, ys = self.get(c1), self.get(c)
         clca = self.lca(br1, br)
@@ -273,14 +273,14 @@ class ActionSetGenerator:
             r |= gamma(lca_val, i, ys)
         return r
 
-    def insertable(self, br: str) -> set[int]:
+    def insertable(self, br: str):
         r = {}
         for br1 in self.branches_info:
             if br != br1:
                 r |= self._insertable(br1, br)
         return r
 
-    def _removable(self, br1: str, br: str) -> set[int]:
+    def _removable(self, br1: str, br: str):
         c1, c = self.head(br1), self.head(br)
         xs, ys = self.get(c1), self.get(c)
         clca = self.lca(br1, br)
@@ -295,7 +295,7 @@ class ActionSetGenerator:
             r |= gamma(lca_val, i, ys)
         return r
 
-    def removable(self, br1: str, br: str) -> set[int]:
+    def removable(self, br1: str, br: str):
         r = {}
         for br1 in self.branches_info:
             if br != br1:
@@ -437,7 +437,7 @@ def beta(f: List[str], lca: List[str], t: List[str]) -> List[str]:
 #        k = gamma(fs, g, br1, j, br2)
 #        return k
 
-def inserted(anc: List[str], vs: List[str]) -> set[int]:
+def inserted(anc: List[str], vs: List[str]):
     r = {}
     d = delta(anc, vs)
     for i in range(len(anc) + 1):
@@ -445,7 +445,7 @@ def inserted(anc: List[str], vs: List[str]) -> set[int]:
             r.add(i)
     return r
 
-def replaced(anc: List[str], vs: List[str]) -> set[int]:
+def replaced(anc: List[str], vs: List[str]):
     r = {}
     xs = lcs(anc, vs)
     j = 0
@@ -656,4 +656,3 @@ commit_id_3 = fs.virtual_ancestor([commit_id_1, commit_id_2])
 print(commit_id_3)
 print(fs.get(commit_id_3))
 """
->>>>>>> 88b39388a3321d12fd7f96b715d7a38c0c6f0882
