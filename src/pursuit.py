@@ -199,10 +199,9 @@ class BranchInfo:
         return 'head: %s; value: %s; commit_history: %s' % (self.head, str(self.value), str(self.commit_history))
 
 class Leaf:
-    def __init__(self, id: str, action_set: List[Action],
-            graph: Graph[str], branches_info: Dict[str, BranchInfo]) -> None:
-        self.id, self.action_set = id, action_set
-        self.graph, self.branches_info = graph, branches_info
+    def __init__(self, id: str, action_set_gen, branches_info: Dict[str, BranchInfo]) -> None:
+        self.id, self.action_set_gen = id, action_set_gen
+        self.branches_info = branches_info
 
 def select(leaves: List[Leaf]):
     return leaves[-1]
@@ -233,151 +232,6 @@ def lcs(xs, ys):
             else:
                 opt[i][j] = fmax(len, [opt[i - 1][j], opt[i][j - 1]])
     return opt[n][m]
-
-class ActionSetGenerator:
-    def __init__(self, fs: FileState, root_commit: str, root_value: List[str], branch_names: List[str], chars: List[str]):
-        self.branches_info = {br: BranchInfo (root_commit, root_value, {root_commit}) for br in branch_names}
-        br1, br2, br3 = branch_name
-        self._lca = {brp: root_commit for brp in [(br1, br2), (br2, br3), (br3, br1)]}
-        self.graph = Graph([root_commit], [])
-        self.value = {root_commit: root_value}
-        self.chars = chars
-        self.i = 0
-
-    def get(self, cid: str) -> List[str]:
-        if cid not in self.value:
-            self.value[cid] = self.fs.get(cid)
-        return self.value[cid]
-
-    def get_br(self, br: str) -> List[str]:
-        return self.get(self.head(br))
-
-    def lca(self, br1: str, br2: str) -> List[str]:
-        if (br1, br2) in self._lca:
-            return self._lca[(br1, br2)]
-        else:
-            return self._lca[(br2, br1)]
-
-    def _insertable(self, br1: str, br: str):
-        c1, c = self.head(br1), self.head(br)
-        xs, ys = self.get(c1), self.get(c)
-        clca = self.lca(br1, br)
-        lca_val = self.get(clca)
-
-        taken_i = inserted(lca_val, xs)
-        taken_r_0 = replaced(lca_val, xs)
-        taken_r = taken_r_0 | set(map(lambda i: i + 1, taken_r_0)) 
-        slots = set(range(len(lca_val))) - (taken_i | taken_r)
-        r = {}
-        for i in slots:
-            r |= gamma(lca_val, i, ys)
-        return r
-
-    def insertable(self, br: str):
-        r = {}
-        for br1 in self.branches_info:
-            if br != br1:
-                r |= self._insertable(br1, br)
-        return r
-
-    def _removable(self, br1: str, br: str):
-        c1, c = self.head(br1), self.head(br)
-        xs, ys = self.get(c1), self.get(c)
-        clca = self.lca(br1, br)
-        lca_val = self.get(clca)
-
-        taken_r = replaced(lca_val, xs)
-        taken_i_0 = inserted(lca_val, xs)
-        taken_i = taken_i_0 | set(map(lambda i: i - 1, taken_i_0))
-        slots = set(range(len(lca_val))) - (taken_i | taken_r)
-        r = {}
-        for i in slots:
-            r |= gamma(lca_val, i, ys)
-        return r
-
-    def removable(self, br1: str, br: str):
-        r = {}
-        for br1 in self.branches_info:
-            if br != br1:
-                r |= self._removable(br1, br)
-        return r
-
-    def head(self, br: str) -> str:
-        return self.branches_info[br].head
-
-    def on_commit(self, i: int, x: str, br: str, cid: str, change: Callable[[None], None]):
-        prev = self.head(br)
-        self.graph.insert(cid, [prev])
-        self.value[cid] = self.value[prev]
-        change()
-        self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
-        del self.value[prev]
-
-    def on_insert(self, i: int, x: str, br: str, cid: str):
-        self.commit(i, x, br, lambda: self.value[cid].insert(i, x))
-
-    def on_replace(self, i: int, x: str, br: str, cid: str):
-        def change(): self.value[cid][i] = x
-        self.commit(i, x, br, change())
-
-    def on_merge(self, f: str, t: str, cid: str):
-        v = self.fs.get(cid)
-        self.value[cid] = v
-        if cid == self.branches_info[t].head:
-            return
-        if cid == self.branches_info[f].head:
-            self.branches_info[t] = BranchInfo(cid, v, self.branches_info[f].commit_history)
-        else:
-            self.graph.insert(cid, [self.branches_info[f].head, self.branches_info[t].head])
-            self.branches_info[t] = BranchInfo(cid, v, self.branches_info[t].commit_history.union(self.branches_info[f].commit_history).union({cid}))
-#        r = []
-#        i = j = k = 0
-#        n = len(lca)
-#
-#        d1 = delta(lca, f)
-#        d2 = delta(lca, t)
-#        while i < n:
-#            g1 = gamma(lca, i, ys)[:-1]
-#            g2 = gamma(lca, i, zs)[:-1]
-#            
-#            assert g1 == [] or g2 == []
-#            if g1 != []:
-#                r += [ys[x] for x in g1]
-#                j += len(g1)
-#            else:
-#                r += [zs[x] for x in g2]
-#                k += len(g2)
-#
-#            assert xs[i] == ys[j] or xs[i] == zs[k]
-#            if xs[i] == ys[j] == zs[k]:
-#                r += [xs[i]]
-#            elif xs[i] != ys[j]:
-#                r += [ys[j]]
-#            else:
-#                r += [zs[k]]
-#            i += 1
-#            j += 1
-#            k += 1
-#        g1 = gamma(lca, n, ys)[:-1]
-#        g2 = gamma(lca, i, zs)[:-1]
-#
-#        self.graph.insert(self.fresh('merge'), [fid, tid]
-#            
-#        assert g1 == [] or g2 == []
-#        if g1 != []:
-#            r += [ys[x] for x in g1]
-#        else:
-#            r += [zs[x] for x in g2]
-#       
-#        for br in self.brs.keys():
-#            if br != f and br != t:
-#                other = br
-#                break
-#        
-#    def insertable(self, br: str) -> List[int]:
-#        
-#
-#
 
 def delta(ys: List[str], zs: List[str]) -> List[int]:
     xs = lcs(ys, zs)
@@ -412,39 +266,20 @@ def alpha(lca: List[str], i: int, vs: List[str], d: Optional[List[int]] = None) 
             return j
     return len(d) - 1
 
-#    def alpha(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo) -> int:
-#        lca = fs.virtual_ancestor_value(g.lca(br1.head, br2.head))
-#        d = delta(lca, br2.value)
-#        n = len(d)
-#        for (j, n) in enumerate(d):
-#            if n >= i:
-#                return j
-#        return len(d) - 1
-
-def gamma(lca: List[str], i: int, vs: List[str], d: Optional[List[int]] = None) -> List[str]:
+def gamma(lca: List[str], i: int, vs: List[str], d: Optional[List[int]] = None):
     if d is None:
         d = delta(lca, vs)
     if i == 0:
-        return list(range(d[i] + 1))
+        return set(range(d[i] + 1))
     else:
-        return list(range(d[i - 1] + 1, d[i] + 1))
+        return set(range(d[i - 1] + 1, d[i] + 1))
     
-#    def gamma(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
-#        lca = fs.virtual_ancestor_value(g.lca(br1.head, br2.head))
-#        d = delta(lca, br2.value)
-#        return set(range(d[i - 1] + 1, d[i] + 1) if i > 0 else range(d[i] + 1))
-
 def beta(f: List[str], lca: List[str], t: List[str]) -> List[str]:
     j = alpha(lca, i, f)
     return gamma(lca, j, t)
     
-#    def beta(fs: FileState, g: Graph, br1: BranchInfo, i: int, br2: BranchInfo):
-#        j = alpha(fs, g, br2, i, br1)
-#        k = gamma(fs, g, br1, j, br2)
-#        return k
-
 def inserted(anc: List[str], vs: List[str]):
-    r = {}
+    r = set([])
     d = delta(anc, vs)
     for i in range(len(anc) + 1):
         if len(gamma(anc, i, vs, d)) > 1:
@@ -452,14 +287,132 @@ def inserted(anc: List[str], vs: List[str]):
     return r
 
 def replaced(anc: List[str], vs: List[str]):
-    r = {}
+    r = set([])
     xs = lcs(anc, vs)
     j = 0
     for x in xs:
         while x != anc[j]:
             r.add(j)
             j += 1
+        j += 1
     return r
+
+class ActionSetGenerator:
+    def __init__(self, fs: FileState, root_commit: str, root_value: List[str], branch_names: List[str], chars: List[str]):
+        self.branches_info = {br: BranchInfo (root_commit, root_value, {root_commit}) for br in branch_names}
+        br1, br2, br3 = branch_names
+        self._lca = {brp: root_commit for brp in [(br1, br2), (br2, br3), (br3, br1)]}
+        self.graph = Graph([root_commit], [])
+        self.value = {root_commit: root_value}
+        self.chars = chars
+        self.brm = set([])
+        self.fs = fs
+
+    def get(self, cid: str) -> List[str]:
+        if cid not in self.value:
+            self.value[cid] = self.fs.get(cid)
+        return self.value[cid]
+
+    def get_br(self, br: str) -> List[str]:
+        return self.get(self.head(br))
+
+    def lca(self, br1: str, br2: str) -> List[str]:
+        if (br1, br2) in self._lca:
+            return self._lca[(br1, br2)]
+        else:
+            return self._lca[(br2, br1)]
+
+    def _insertable(self, br1: str, br: str):
+        c1, c = self.head(br1), self.head(br)
+        xs, ys = self.get(c1), self.get(c)
+        clca = self.lca(br1, br)
+        lca_val = self.get(clca)
+
+        taken_i = inserted(lca_val, xs)
+        taken_r_0 = replaced(lca_val, xs)
+        taken_r = taken_r_0 | set(map(lambda i: i + 1, taken_r_0)) 
+        slots = set(range(len(lca_val) + 1)) - (taken_i | taken_r)
+        r = set([])
+        for i in slots:
+            r |= gamma(lca_val, i, ys)
+        return r
+
+    def insertable(self, br: str):
+        r = set([])
+        for br1 in self.branches_info:
+            if br != br1:
+                r |= self._insertable(br1, br)
+        return r
+
+    def _replaceable(self, br1: str, br: str):
+        c1, c = self.head(br1), self.head(br)
+        xs, ys = self.get(c1), self.get(c)
+        clca = self.lca(br1, br)
+        lca_val = self.get(clca)
+
+        taken_r = replaced(lca_val, xs)
+        taken_i_0 = inserted(lca_val, xs)
+        taken_i = taken_i_0 | set(map(lambda i: i - 1, taken_i_0))
+        slots = set(range(len(lca_val))) - (taken_i | taken_r)
+        r = set([])
+        for i in slots:
+            r |= gamma(lca_val, i, ys)
+        return r
+
+    def replaceable(self, br: str):
+        r = set([])
+        for br1 in self.branches_info:
+            if br != br1:
+                r |= self._replaceable(br1, br)
+        return r
+
+    def head(self, br: str) -> str:
+        return self.branches_info[br].head
+
+    def on_insert(self, i: int, x: str, br: str, cid: str):
+        prev = self.head(br)
+        self.graph.insert(cid, [prev])
+        self.value[cid] = self.value[prev]
+        self.value[cid].insert(i, x)
+        self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
+        del self.value[prev]
+        print(type(self.brm))
+        self.brm |= {(br, bri) for bri in self.branches_info if br != bri}
+
+    def on_replace(self, i: int, x: str, br: str, cid: str):
+        prev = self.head(br)
+        self.graph.insert(cid, [prev])
+        self.value[cid] = self.value[prev]
+        self.value[cid][i] = x
+        self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
+        del self.value[prev]
+        print(type(self.brm))
+        self.brm |= {(br, bri) for bri in self.branches_info if br != bri}
+
+    def on_merge(self, f: str, t: str, cid: str):
+        v = self.fs.get(cid)
+        self.value[cid] = v
+        if cid == self.branches_info[t].head:
+            return
+        if cid == self.branches_info[f].head:
+            self.branches_info[t] = BranchInfo(cid, v, self.branches_info[f].commit_history)
+        else:
+            self.graph.insert(cid, [self.branches_info[f].head, self.branches_info[t].head])
+            self.branches_info[t] = BranchInfo(cid, v, self.branches_info[t].commit_history.union(self.branches_info[f].commit_history).union({cid}))
+        self.brm -= {(f, t)}
+
+    def on_action(self, action: Action, cid: str):
+        if isinstance(action, Insert):
+            self.on_insert(action.i, action.x, action.br, cid)
+        elif isinstance(action, Replace):
+            self.on_replace(action.i, action.x, action.br, cid)
+        else:
+            self.on_merge(action.br1, action.br2, cid)
+
+    def build(self):
+        ins = {br: self.insertable(br) for br in self.branches_info}
+        rep = {br: self.replaceable(br) for br in self.branches_info}
+        return ActionSet(self.chars, ins, rep, self.brm)
 
 class ActionSet:
     def __init__(self, chars, ins, rep, brm): 
@@ -470,62 +423,6 @@ class ActionSet:
 
     def __str__(self):
         return 'Insertions:' + str(self.ins) + '\nReplacements:' + str(self.rep) + '\nMerges:' + str(self.brm)
-
-#    def on_insert(self, i, br):
-#        n = len(self.ins[br])
-#        self.ins[br].add(n)
-#        self.rep[br].add(n - 1)
-#        other_brs = list(filter(lambda b: b != br, list(self.brs.keys())))
-#        assert len(other_brs) == 2
-#        js = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[0]])
-#        assert len(js) == 1
-#        j = js.pop()
-#        self.ins[other_brs[0]] -= set([j])
-#        self.rep[other_brs[0]] -= set([j - 1, j])
-#        ks = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[1]])
-#        assert len(ks) == 1
-#        k = ks.pop()
-#        self.ins[other_brs[1]] -= set([k])
-#        self.rep[other_brs[1]] -= set([k - 1, k])
-#        self.brm |= set([(br, other_brs[0]), (br, other_brs[1])])
-#
-#    def on_replace(self, i, br):
-#        n = len(self.rep[br])
-#        self.rep[br].add(n)
-#        other_brs = list(filter(lambda b: b != br, list(self.brs.keys())))
-#        assert len(other_brs) == 2
-#        js = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[0]])
-#        assert len(js) == 1
-#        j = js.pop()
-#        self.rep[other_brs[0]] -= set([j])
-#        self.ins[other_brs[0]] -= set([j + 1, j])
-#        ks = beta(self.fs, self.g, self.brs[br], i, self.brs[other_brs[1]])
-#        assert len(ks) == 1
-#        k = ks.pop()
-#        self.rep[other_brs[1]] -= set([k])
-#        self.ins[other_brs[1]] -= set([k + 1, k])
-#        self.brm |= set([(br, other_brs[0]), (br, other_brs[1])])
-#
-#    def on_merge(self, br1, br2):
-#        js = set([])
-#        ks = set([])
-#        for i in self.ins[br1]:
-#            assert i is not None
-#            js |= beta(self.fs, self.g, self.brs[br1], i, self.brs[br2])
-#        for i in self.rep[br1]:
-#            assert i is not None
-#            ks |= beta(self.fs, self.g, self.brs[br1], i, self.brs[br2])
-#        self.ins[br2] |= js
-#        self.rep[br2] |= ks
-#        self.brm -= set([(br1, br2)])
-#
-#    def update(self, action):
-#        if type(action) == Insert:
-#            self.on_insert(action.i, action.br)
-#        elif type(action) == Replace:
-#            self.on_replace(action.i, action.br)
-#        else:
-#            self.on_merge(action.br1, action.br2)
 
     def pop(self):
         q1 = randint(1, 12)
@@ -590,7 +487,16 @@ if __name__ == '__main__':
     commit_id = fs.last_commit_id(branches[0])
     branch_info = BranchInfo(commit_id, fs.value('', branches[0]), {commit_id})
     branches_info = {br: branch_info for br in branches}
-    graph = Graph([commit_id], [])
+    asg = ActionSetGenerator(fs, commit_id, fs.get(commit_id), ['master', 'A', 'B'], {'a', 'b', 'c', 'd'})
+    action_set = asg.build()
+    leaves = [Leaf('', asg, branches_info)]
+    leaf = select(leaves)
+    a = action_set.pop()
+    print(a)
+    cid = fs.next(leaf.id, '1', a)
+    asg.on_action(a, cid)
+    print(asg.build())
+"""    graph = Graph([commit_id], [])
     #graph, branches_info = update(fs, '', '1', graph, branches_info, Insert(2, 'e', branches[1]))
     #graph, branches_info = update(fs, '1', '2', graph, branches_info, Insert(2, 'd', branches[1]))
     #graph, branches_info = update(fs, '2', '3', graph, branches_info, Insert(2, 'q', branches[2]))
@@ -649,7 +555,7 @@ if __name__ == '__main__':
             leaves.append(Leaf(new_id, new_action_set, new_graph, new_branches_info))
         else:
             print('pop')
-            leaves.pop()
+            leaves.pop()"""
 """test begins
 commit_id_1 = fs.next('', '1', Insert(3, 'e', branches[1]))
 commit_id_2 = fs.next('1', '2', Replace(1, 'd', branches[2]))
