@@ -417,6 +417,7 @@ class ActionSetGenerator:
         else:
             new_lca = lcas[0]
         self.set_lca(t, other, new_lca)
+        self.set_lca(t, f, self.head(f))
 
     def on_action(self, action: Action, cid: str):
         if isinstance(action, Insert):
