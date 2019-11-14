@@ -309,8 +309,8 @@ class ActionSetGenerator:
         prev = self.head(br)
         self.graph.insert(cid, [prev])
         self.value[cid] = self.value[prev]
-#        self.branches_info[br] = # TODO: Help, Yi! 
         change()
+        self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
         del self.value[prev]
 
     def on_insert(self, i: int, x: str, br: str, cid: str):
@@ -323,7 +323,13 @@ class ActionSetGenerator:
     def on_merge(self, f: str, t: str, cid: str):
         v = self.fs.get(cid)
         self.value[cid] = v
-#        t = BranchInfo # TODO: Help, Yi!
+        if cid == self.branches_info[t].head:
+            return
+        if cid == self.branches_info[f].head:
+            self.branches_info[t] = BranchInfo(cid, v, self.branches_info[f].commit_history)
+        else:
+            self.graph.insert(cid, [self.branches_info[f].head, self.branches_info[t].head])
+            self.branches_info[t] = BranchInfo(cid, v, self.branches_info[t].commit_history.union(self.branches_info[f].commit_history).union({cid}))
 #        r = []
 #        i = j = k = 0
 #        n = len(lca)
