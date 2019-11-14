@@ -439,7 +439,7 @@ class ActionSetGenerator:
     def build(self):
         ins = {br: self.insertable(br) for br in self.branches_info}
         rep = {br: self.replaceable(br) for br in self.branches_info}
-        bvals = {br: self.get_br(br) for br in self.branches_info}
+        bvals = {br: self.branches_info[br].value for br in self.branches_info}
         return ActionSet(self.chars, ins, rep, self.brm, bvals)
 
 class ActionSet:
