@@ -417,14 +417,16 @@ class ActionSetGenerator:
     def build(self):
         ins = {br: self.insertable(br) for br in self.branches_info}
         rep = {br: self.replaceable(br) for br in self.branches_info}
-        return ActionSet(self.chars, ins, rep, self.brm)
+        bvals = {br: self.get_br(br) for br in self.branches_info}
+        return ActionSet(self.chars, ins, rep, self.brm, bvals)
 
 class ActionSet:
-    def __init__(self, chars, ins, rep, brm): 
+    def __init__(self, chars, ins, rep, brm, bvals): 
         self.ins = ins
         self.rep = rep
         self.cs = chars
         self.brm = brm
+        self.bvals = bvals
 
     def __str__(self):
         return 'Insertions:' + str(self.ins) + '\nReplacements:' + str(self.rep) + '\nMerges:' + str(self.brm)
@@ -446,6 +448,8 @@ class ActionSet:
             br = list(self.rep.keys())[q2]
             if len(self.rep[br]) > 0:
                 i = choice(list(self.rep[br]))
+                while self.bvals[br][i] == x:
+                    x = choice(list(self.cs))
             else:
                 return self.pop()
             return Replace(i, x, br)
