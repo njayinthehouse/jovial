@@ -166,14 +166,20 @@ class Graph(Generic[T]):
         self.g[f] = (self.g[f] if f in self.g.keys() else []) + t
 
     def _dfs1(self, v: T, acc: Dict[T, int]) -> None:
-        acc[v] = acc[v] + 1 if v in acc.keys() else 1
-        for w in self.g[v]:
-            self._dfs1(w, acc)
+        if v not in acc:
+            acc[v] = 1
+            for w in self.g[v]:
+                self._dfs1(w, acc)
 
-    def _dfs2(self, v: T, acc: Dict[T, int], k: int) -> None:
-        acc[v] = acc[v] + k if v in acc.keys() else 1
-        for w in self.g[v]:
-            self._dfs2(w, acc, acc[v])
+    def _dfs2(self, v: T, acc: Dict[T, int], acc2: Dict[T, int], k: int) -> None:
+        if v not in acc2:
+            if v in acc:
+                acc2[v] = acc[v] + k + 1
+                for w in self.g[v]:
+                    self._dfs2(w, acc, acc2, 1)
+            else:
+                for w in self.g[v]:
+                    self._dfs2(w, acc, acc2, 0)
 
     def ancestor(self, v: T, u: T) -> bool:
         if v == u:
@@ -186,8 +192,9 @@ class Graph(Generic[T]):
 
     def lca(self, v: T, u: T) -> List[T]:
         acc = {}
+        acc2 = {}
         self._dfs1(v, acc)
-        self._dfs2(u, acc, 1)
+        self._dfs2(u, acc, acc2, 0)
         r = []
         for (w, k) in acc.items():
             if k == 2:
@@ -410,8 +417,9 @@ class ActionSetGenerator:
             if br != f and br != t:
                 other = br
                 break
-        print(self.graph)
         lcas = self.graph.lca(cid, self.head(other))
+        print('f', f)
+        print('t', t)
         if len(lcas) > 1:
             new_lca = fs.virtual_ancestor(lcas)
         else:
@@ -420,6 +428,7 @@ class ActionSetGenerator:
         self.set_lca(t, f, self.head(f))
 
     def on_action(self, action: Action, cid: str):
+        print(self.graph)
         if isinstance(action, Insert):
             self.on_insert(action.i, action.x, action.br, cid)
         elif isinstance(action, Replace):
