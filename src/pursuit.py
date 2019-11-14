@@ -396,7 +396,7 @@ class ActionSetGenerator:
         v = self.fs.get(cid)
         self.value[cid] = v
         if cid != self.head(t):
-            if cid == self.head(t):
+            if cid == self.head(f):
                 self.branches_info[t] = BranchInfo(cid, v, self.branches_info[f].commit_history)
             else:
                 self.graph.insert(cid, [self.branches_info[f].head, self.branches_info[t].head])
