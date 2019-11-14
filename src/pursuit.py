@@ -528,6 +528,8 @@ if __name__ == '__main__':
                         new_branches_info[br].commit_history == new_branches_info[br2].commit_history and \
                         new_branches_info[br].value != new_branches_info[br2].value:
                     print('Inconsistence: %s(%s, %s)', new_id, br, br2)
+                    print('value of (%s): %s', br, str(new_branches_info[br].value))
+                    print('value of (%s): %s', br2, str(new_branches_info[br2].value))
                     inconsistence = True
                     assert False
             if inconsistence:
