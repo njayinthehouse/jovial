@@ -477,9 +477,9 @@ if __name__ == '__main__':
     while True:
         leaf = select(leaves)
         asg = leaf.action_set_gen
-        action = asg.build()
-        print(action)
-        action = action.pop()
+        action_set = asg.build()
+        print(action_set)
+        action = action_set.pop()
         new_id = str(id)
         commit_id = fs.next(leaf.id, new_id, action)
         id += 1
@@ -489,7 +489,6 @@ if __name__ == '__main__':
             continue
         new_asg = deepcopy(asg)
         new_asg.on_action(action, commit_id)
-        print(action)
         new_branches_info = new_asg.branches_info
         if isinstance(action, Merge):
             br1, br2 = action.br1, action.br2
@@ -504,7 +503,7 @@ if __name__ == '__main__':
             if inconsistence:
                 continue
         if len(leaves) < 20 and (randint(1, 10) > 3 or len(leaves) == 1):
-            #print(action)
+            print(action)
             leaves.append(Leaf(new_id, new_asg))
         else:
             print('pop')
