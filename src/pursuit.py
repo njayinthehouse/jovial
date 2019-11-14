@@ -387,19 +387,17 @@ class ActionSetGenerator:
     def on_insert(self, i: int, x: str, br: str, cid: str):
         prev = self.head(br)
         self.graph.insert(cid, [prev])
-        self.value[cid] = self.value[prev]
+        self.value[cid] = copy(self.value[prev])
         self.value[cid].insert(i, x)
         self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
-        del self.value[prev]
         self.brm |= {(br, bri) for bri in self.branches_info if br != bri}
 
     def on_replace(self, i: int, x: str, br: str, cid: str):
         prev = self.head(br)
         self.graph.insert(cid, [prev])
-        self.value[cid] = self.value[prev]
+        self.value[cid] = copy(self.value[prev])
         self.value[cid][i] = x
         self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
-        del self.value[prev]
         self.brm |= {(br, bri) for bri in self.branches_info if br != bri}
 
     def on_merge(self, f: str, t: str, cid: str):
