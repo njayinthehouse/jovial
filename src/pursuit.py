@@ -369,6 +369,7 @@ class ActionSetGenerator:
         r = set([])
         for i in slots:
             r |= gamma(lca_val, i, ys)
+        r -= {len(ys)}
         return r
 
     def replaceable(self, br: str):
