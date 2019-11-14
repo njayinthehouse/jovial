@@ -295,6 +295,7 @@ def replaced(anc: List[str], vs: List[str]):
             r.add(j)
             j += 1
         j += 1
+    r |= set(range(j, len(anc)))
     return r
 
 class ActionSetGenerator:
@@ -338,10 +339,13 @@ class ActionSetGenerator:
         return r
 
     def insertable(self, br: str):
-        r = set([])
+        r = None
         for br1 in self.branches_info:
             if br != br1:
-                r |= self._insertable(br1, br)
+                if r is None:
+                    r = self._insertable(br1, br)
+                else:
+                    r &= self._insertable(br1, br)
         return r
 
     def _replaceable(self, br1: str, br: str):
@@ -360,10 +364,13 @@ class ActionSetGenerator:
         return r
 
     def replaceable(self, br: str):
-        r = set([])
+        r = None
         for br1 in self.branches_info:
             if br != br1:
-                r |= self._replaceable(br1, br)
+                if r is None:
+                    r = self._replaceable(br1, br)
+                else:
+                    r &= self._replaceable(br1, br)
         return r
 
     def head(self, br: str) -> str:
@@ -376,7 +383,6 @@ class ActionSetGenerator:
         self.value[cid].insert(i, x)
         self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
         del self.value[prev]
-        print(type(self.brm))
         self.brm |= {(br, bri) for bri in self.branches_info if br != bri}
 
     def on_replace(self, i: int, x: str, br: str, cid: str):
@@ -386,7 +392,6 @@ class ActionSetGenerator:
         self.value[cid][i] = x
         self.branches_info[br] = BranchInfo(cid, self.value[cid], self.branches_info[br].commit_history.union({cid}))
         del self.value[prev]
-        print(type(self.brm))
         self.brm |= {(br, bri) for bri in self.branches_info if br != bri}
 
     def on_merge(self, f: str, t: str, cid: str):
@@ -491,8 +496,8 @@ if __name__ == '__main__':
     action_set = asg.build()
     leaves = [Leaf('', asg, branches_info)]
     leaf = select(leaves)
-    a = action_set.pop()
-    print(a)
+    a = Replace(1, 'q', 'master')
+    print('Action:', a)
     cid = fs.next(leaf.id, '1', a)
     asg.on_action(a, cid)
     print(asg.build())
