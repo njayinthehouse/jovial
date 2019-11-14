@@ -309,12 +309,18 @@ class ActionSetGenerator:
     def get_br(self, br: str) -> List[str]:
         return self.get(self.head(br))
 
-    def lca(self, br1: str, br2: str) -> List[str]:
+    def lca(self, br1: str, br2: str) -> str:
         if (br1, br2) in self._lca:
             return self._lca[(br1, br2)]
         else:
             return self._lca[(br2, br1)]
 
+    def set_lca(self, br1: str, br2: str, cid: str):
+        if (br1, br2) in self._lca:
+            self._lca[(br1, br2)] = cid
+        else:
+            self._lca[(br2, br1)] = cid
+        
     def _insertable(self, br1: str, br: str):
         c1, c = self.head(br1), self.head(br)
         xs, ys = self.get(c1), self.get(c)
@@ -389,13 +395,24 @@ class ActionSetGenerator:
     def on_merge(self, f: str, t: str, cid: str):
         v = self.fs.get(cid)
         self.value[cid] = v
-        if cid != self.branches_info[t].head:
-            if cid == self.branches_info[f].head:
+        if cid != self.head(t):
+            if cid == self.head(t):
                 self.branches_info[t] = BranchInfo(cid, v, self.branches_info[f].commit_history)
             else:
                 self.graph.insert(cid, [self.branches_info[f].head, self.branches_info[t].head])
                 self.branches_info[t] = BranchInfo(cid, v, self.branches_info[t].commit_history.union(self.branches_info[f].commit_history).union({cid}))
         self.brm -= {(f, t)}
+        other = None
+        for br in self.branches_info:
+            if br != f and br != t:
+                other = br
+                break
+        lcas = self.graph.lca(cid, self.head(other))
+        if len(lcas) > 1:
+            new_lca = fs.virtual_ancestor(lcas)
+        else:
+            new_lca = lcas[0]
+        self.set_lca(t, other, new_lca)
 
     def on_action(self, action: Action, cid: str):
         if isinstance(action, Insert):
