@@ -196,7 +196,7 @@ class Graph(Generic[T]):
         self._dfs1(v, acc)
         self._dfs2(u, acc, acc2, 0)
         r = []
-        for (w, k) in acc.items():
+        for (w, k) in acc2.items():
             if k == 2:
                 r.append(w)
         return r
