@@ -158,6 +158,9 @@ class Graph(Generic[T]):
         self.g: Dict[T, List[T]] = {v: [] for v in vs}
         for (v, u) in es:
             self.insert(v, [u])
+
+    def __str__(self):
+        return str(self.g)
         
     def insert(self, f: T, t: List[T]) -> None:
         self.g[f] = (self.g[f] if f in self.g.keys() else []) + t
@@ -407,6 +410,7 @@ class ActionSetGenerator:
             if br != f and br != t:
                 other = br
                 break
+        print(self.graph)
         lcas = self.graph.lca(cid, self.head(other))
         if len(lcas) > 1:
             new_lca = fs.virtual_ancestor(lcas)
